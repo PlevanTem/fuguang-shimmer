@@ -55,10 +55,18 @@ npm run typecheck
 
 ## 部署到 GitHub Pages
 
-1. 在 GitHub **新建空仓库**（建议名称 `fuguang-shimmer` 与 `package.json` 一致），将本目录推送到 `main`。
-2. 仓库 **Settings → Pages → Source** 选 **GitHub Actions**。
-3. 推送后工作流会带 `VITE_BASE=/<仓库名>/` 构建。站点：  
-   `https://<用户名>.github.io/<仓库名>/`
+**只 push 代码不会自动出现可访问网站**，必须在仓库里把 Pages 指到本仓库的 GitHub Actions（见下）。工作流在 [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)，推送 `main` 或手动 **Run workflow** 会执行 `npm ci` + `npm run build`（`VITE_BASE=/<仓库名>/`），再发布 `dist/`。
+
+### 首次上线（必做一次）
+
+1. 打开仓库 **Settings** → 左侧 **Pages**。
+2. **Build and deployment** 里 **Source** 选 **GitHub Actions**（不要选 “Deploy from a branch”）。保存即可。
+3. 推送到 `main`，或到 **Actions** 打开 **Deploy to GitHub Pages** → 选最新运行；若需重跑，点 **Re-run all jobs**。
+4. 等该 workflow 变绿后，在 **Settings → Pages** 顶部会显示 **Visit site** 的地址，一般为：  
+   `https://<你的用户名>.github.io/<仓库名>/`  
+   本仓库示例： [https://plevantem.github.io/fuguang-shimmer/](https://plevantem.github.io/fuguang-shimmer/)（以 Settings 里实际地址为准）
+
+若 **Actions 里 build 失败**，在对应 run 里查看日志（常见：依赖未锁好则本地执行 `npm ci` 试一次）。
 
 其他静态托管（Vercel / Netlify / Cloudflare Pages）使用默认 `base: './'`，直接发布 `dist/` 即可。
 
