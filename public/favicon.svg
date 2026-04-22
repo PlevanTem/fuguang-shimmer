@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#FAFAF7"/>
+  <text
+    x="16"
+    y="23"
+    text-anchor="middle"
+    font-family="'DM Serif Display', 'Playfair Display', Georgia, serif"
+    font-style="italic"
+    font-size="22"
+    fill="#111111"
+  >s</text>
+</svg>

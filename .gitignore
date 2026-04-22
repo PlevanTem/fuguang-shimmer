@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.vite/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.cache/
+
+# Agent & product docs — internal only, not part of the product
+.agents/
+docs/
+
+# Terminals / scratch
+terminals/
+.cursor/
+.commitmsg
