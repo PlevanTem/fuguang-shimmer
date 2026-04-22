@@ -4,10 +4,6 @@ export type Layout =
   | 'image-left'
   | 'image-right';
 
-export type Ratio = '3:4' | '4:3' | '1:1' | '9:16' | '16:9';
-
-export type ImageFit = 'contain' | 'cover';
-
 export type FillMode = 'solid' | 'cutout';
 
 export type ShapeKind =
@@ -18,7 +14,10 @@ export type ShapeKind =
   | 'music'
   | 'wave'
   | 'triangle'
-  | 'hex';
+  | 'hex'
+  | 'text';
+
+export type FontKey = 'serif-italic' | 'serif' | 'sans' | 'mono';
 
 export interface Shape {
   id: string;
@@ -26,13 +25,17 @@ export interface Shape {
   /** 0–1 normalized position inside the color-block rect. */
   x: number;
   y: number;
-  /** Size in color-block-rect relative units (0–1). */
+  /** Size in color-block-rect relative units (0–0.3 typical range). */
   size: number;
   /** Rotation in radians. */
   rotation: number;
   /** Hex color. Only used for solid fillMode. */
   color: string;
   fillMode: FillMode;
+  /** Literal text payload for kind==='text'. Ignored otherwise. */
+  text?: string;
+  /** Font family key for kind==='text'. Ignored otherwise. */
+  font?: FontKey;
 }
 
 export interface Caption {
@@ -40,7 +43,7 @@ export interface Caption {
   /** User-typed override. Empty string means "use auto". */
   text: string;
   /** Font family key (matches FONTS map in render.ts). */
-  font: 'serif-italic' | 'serif' | 'sans' | 'mono';
+  font: FontKey;
 }
 
 export interface Composition {
@@ -49,10 +52,6 @@ export interface Composition {
   /** 5 hex strings extracted via median-cut. */
   palette: string[];
   layout: Layout;
-  /** Split ratio 0.25 – 0.75 (image side's share). */
-  splitRatio: number;
-  ratio: Ratio;
-  imageFit: ImageFit;
   /** Hex color of the color block. Usually a choice from `palette`. */
   blockColor: string;
   caption: Caption;
@@ -60,7 +59,13 @@ export interface Composition {
   activeFillMode: FillMode;
   /** Color of newly-added solid shapes (unused when fillMode = cutout). */
   activeShapeColor: string;
+  /** Size of newly-added shapes (in color-block relative units, 0.04–0.3). */
+  activeShapeSize: number;
+  /** Pending text string to place when user presses "Add text". */
+  activeShapeText: string;
   shapes: Shape[];
+  /** Currently selected shape id, null if nothing selected. */
+  selectedShapeId: string | null;
 }
 
 export interface Rect {

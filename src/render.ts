@@ -1,112 +1,137 @@
-import type { Composition, Layout, Rect, Ratio, Shape } from './types';
+import type { Composition, FontKey, Layout, Rect, Shape } from './types';
 import { contrastInk, buildAutoCaption } from './palette';
 import { getShapePath } from './shapes';
 
 const PAPER = '#FAFAF7';
-const IMAGE_PAD_BG = '#FFFFFF';
+const PLACEHOLDER_IVORY = '#F4F2EC';
+const PLACEHOLDER_HAIRLINE = '#D6D3C9';
 
-const RATIO_MAP: Record<Ratio, [number, number]> = {
-  '3:4': [3, 4],
-  '4:3': [4, 3],
-  '1:1': [1, 1],
-  '9:16': [9, 16],
-  '16:9': [16, 9],
-};
+/** When no image is loaded, use this nominal 4:3 shape so the empty canvas reads compactly. */
+const PLACEHOLDER_IMAGE_W = 1600;
+const PLACEHOLDER_IMAGE_H = 1200;
 
-export function ratioToDimensions(
-  ratio: Ratio,
-  longest = 1600
-): { width: number; height: number } {
-  const [a, b] = RATIO_MAP[ratio];
-  if (a >= b) {
-    return { width: longest, height: Math.round((longest * b) / a) };
-  }
-  return { width: Math.round((longest * a) / b), height: longest };
-}
-
-export function computeRects(
-  layout: Layout,
-  splitRatio: number,
-  w: number,
-  h: number
-): { imageRect: Rect; colorRect: Rect } {
-  const s = Math.max(0.15, Math.min(0.85, splitRatio));
-  switch (layout) {
-    case 'image-top':
-      return {
-        imageRect: { x: 0, y: 0, w, h: h * s },
-        colorRect: { x: 0, y: h * s, w, h: h * (1 - s) },
-      };
-    case 'image-bottom':
-      return {
-        colorRect: { x: 0, y: 0, w, h: h * (1 - s) },
-        imageRect: { x: 0, y: h * (1 - s), w, h: h * s },
-      };
-    case 'image-left':
-      return {
-        imageRect: { x: 0, y: 0, w: w * s, h },
-        colorRect: { x: w * s, y: 0, w: w * (1 - s), h },
-      };
-    case 'image-right':
-      return {
-        colorRect: { x: 0, y: 0, w: w * (1 - s), h },
-        imageRect: { x: w * (1 - s), y: 0, w: w * s, h },
-      };
-  }
-}
-
-function drawImageContain(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  rect: Rect
-): void {
-  const iw = img.naturalWidth;
-  const ih = img.naturalHeight;
-  if (iw === 0 || ih === 0) return;
-  const scale = Math.min(rect.w / iw, rect.h / ih);
-  const drawW = iw * scale;
-  const drawH = ih * scale;
-  const dx = rect.x + (rect.w - drawW) / 2;
-  const dy = rect.y + (rect.h - drawH) / 2;
-  ctx.drawImage(img, dx, dy, drawW, drawH);
-}
-
-function drawImageCover(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  rect: Rect
-): void {
-  const iw = img.naturalWidth;
-  const ih = img.naturalHeight;
-  if (iw === 0 || ih === 0) return;
-  const scale = Math.max(rect.w / iw, rect.h / ih);
-  const drawW = iw * scale;
-  const drawH = ih * scale;
-  const dx = rect.x + (rect.w - drawW) / 2;
-  const dy = rect.y + (rect.h - drawH) / 2;
-  ctx.drawImage(img, dx, dy, drawW, drawH);
+export interface ComposedLayout {
+  /** Intrinsic canvas dimensions in px, derived from photo + layout. */
+  canvasW: number;
+  canvasH: number;
+  /** Rectangle the photo occupies, at its natural aspect ratio. */
+  imageRect: Rect;
+  /** Rectangle the color block occupies. Same width (split-v) or height (split-h) as the photo. */
+  colorRect: Rect;
 }
 
 /**
- * Build an offscreen canvas whose entire area is filled with the image at
- * cover-fit. Used as the "see-through" source for cutout shapes.
+ * The core compositional rule:
+ * - The photo keeps its natural aspect ratio (no letterboxing, no cropping).
+ * - The color block has exactly the same dimensions as the photo (mirror).
+ * - The canvas is exactly photo + colorBlock stacked or side-by-side.
  */
-function buildCoverBacking(
-  img: HTMLImageElement,
-  w: number,
-  h: number
-): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(w));
-  c.height = Math.max(1, Math.round(h));
-  const ctx = c.getContext('2d');
-  if (!ctx) return c;
-  ctx.fillStyle = IMAGE_PAD_BG;
-  ctx.fillRect(0, 0, w, h);
-  drawImageCover(ctx, img, { x: 0, y: 0, w, h });
-  return c;
+export function composeLayout(
+  imageW: number,
+  imageH: number,
+  layout: Layout
+): ComposedLayout {
+  if (layout === 'image-top') {
+    return {
+      canvasW: imageW,
+      canvasH: imageH * 2,
+      imageRect: { x: 0, y: 0, w: imageW, h: imageH },
+      colorRect: { x: 0, y: imageH, w: imageW, h: imageH },
+    };
+  }
+  if (layout === 'image-bottom') {
+    return {
+      canvasW: imageW,
+      canvasH: imageH * 2,
+      colorRect: { x: 0, y: 0, w: imageW, h: imageH },
+      imageRect: { x: 0, y: imageH, w: imageW, h: imageH },
+    };
+  }
+  if (layout === 'image-left') {
+    return {
+      canvasW: imageW * 2,
+      canvasH: imageH,
+      imageRect: { x: 0, y: 0, w: imageW, h: imageH },
+      colorRect: { x: imageW, y: 0, w: imageW, h: imageH },
+    };
+  }
+  // image-right
+  return {
+    canvasW: imageW * 2,
+    canvasH: imageH,
+    colorRect: { x: 0, y: 0, w: imageW, h: imageH },
+    imageRect: { x: imageW, y: 0, w: imageW, h: imageH },
+  };
 }
 
+/** Compose based on the current state — uses placeholders when no image. */
+export function composeFromState(state: Composition): ComposedLayout {
+  const w = state.image?.naturalWidth ?? PLACEHOLDER_IMAGE_W;
+  const h = state.image?.naturalHeight ?? PLACEHOLDER_IMAGE_H;
+  return composeLayout(w, h, state.layout);
+}
+
+/**
+ * Pick a layout orientation that keeps the final canvas aspect close to a
+ * readable square-ish rectangle (between 0.5 and 2.0). If the current
+ * orientation would produce an extreme canvas for this photo, flip 90°.
+ */
+export function chooseReadableLayout(
+  imageW: number,
+  imageH: number,
+  current: Layout
+): Layout {
+  const photoAspect = imageW / imageH;
+  const isVertical = current === 'image-top' || current === 'image-bottom';
+  const canvasAspect = isVertical ? photoAspect / 2 : photoAspect * 2;
+
+  if (canvasAspect >= 0.5 && canvasAspect <= 2.0) return current;
+
+  switch (current) {
+    case 'image-top':
+      return 'image-left';
+    case 'image-bottom':
+      return 'image-right';
+    case 'image-left':
+      return 'image-top';
+    case 'image-right':
+      return 'image-bottom';
+  }
+}
+
+/** Scale a composed layout so the longest edge is `maxEdge` pixels — for export. */
+export function scaleLayoutToMaxEdge(
+  layout: ComposedLayout,
+  maxEdge: number
+): { scale: number; width: number; height: number } {
+  const longest = Math.max(layout.canvasW, layout.canvasH);
+  const scale = maxEdge / longest;
+  return {
+    scale,
+    width: Math.round(layout.canvasW * scale),
+    height: Math.round(layout.canvasH * scale),
+  };
+}
+
+export const FONT_MAP: Record<FontKey, string> = {
+  'serif-italic':
+    "italic 400 16px 'DM Serif Display', 'Source Han Serif CN', 'Songti SC', Georgia, serif",
+  serif:
+    "400 16px 'DM Serif Display', 'Source Han Serif CN', 'Songti SC', Georgia, serif",
+  sans: "500 16px 'Inter', 'PingFang SC', system-ui, sans-serif",
+  mono: "500 16px 'JetBrains Mono', ui-monospace, monospace",
+};
+
+function shapeFont(shape: Shape, unit: number): string {
+  const font = shape.font ?? 'serif-italic';
+  const fontSize = unit * 2;
+  return FONT_MAP[font].replace('16px', `${fontSize.toFixed(1)}px`);
+}
+
+/**
+ * Draw a shape into ctx. Caller must have already set up fillStyle and any
+ * compositing mode (destination-out for cutout, source-over for solid).
+ */
 function drawShape(
   ctx: CanvasRenderingContext2D,
   shape: Shape,
@@ -115,6 +140,21 @@ function drawShape(
   const px = rect.x + shape.x * rect.w;
   const py = rect.y + shape.y * rect.h;
   const unit = Math.min(rect.w, rect.h) * shape.size * 0.5;
+
+  if (shape.kind === 'text') {
+    const text = shape.text ?? '';
+    if (!text) return;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(shape.rotation);
+    ctx.font = shapeFont(shape, unit);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+    return;
+  }
+
   ctx.save();
   ctx.translate(px, py);
   ctx.rotate(shape.rotation);
@@ -124,61 +164,210 @@ function drawShape(
   ctx.restore();
 }
 
-const FONT_MAP: Record<Composition['caption']['font'], string> = {
-  'serif-italic':
-    "italic 400 16px 'DM Serif Display', 'Source Han Serif CN', 'Songti SC', Georgia, serif",
-  serif:
-    "400 16px 'DM Serif Display', 'Source Han Serif CN', 'Songti SC', Georgia, serif",
-  sans:
-    "500 16px 'Inter', 'PingFang SC', system-ui, sans-serif",
-  mono:
-    "500 16px 'JetBrains Mono', ui-monospace, monospace",
-};
-
-export interface RenderOptions {
-  /** Output pixel width (final bitmap). */
-  width: number;
-  /** Output pixel height. */
-  height: number;
+/**
+ * Compute the axis-aligned bounding half-size of a shape in its local
+ * (pre-rotation) coordinate system — used both for the selection box and for
+ * hit-testing. Returns the half-width/height in rect pixel units.
+ */
+function shapeLocalHalfSize(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  rect: Rect
+): { hw: number; hh: number; unit: number } {
+  const unit = Math.min(rect.w, rect.h) * shape.size * 0.5;
+  if (shape.kind === 'text') {
+    const text = shape.text ?? '';
+    ctx.save();
+    ctx.font = shapeFont(shape, unit);
+    const m = ctx.measureText(text);
+    ctx.restore();
+    const hw = Math.max(unit * 0.5, m.width / 2 + 4);
+    const hh = unit * 1.2;
+    return { hw, hh, unit };
+  }
+  return { hw: unit, hh: unit, unit };
 }
 
+function drawSelection(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  rect: Rect
+): void {
+  const px = rect.x + shape.x * rect.w;
+  const py = rect.y + shape.y * rect.h;
+  const { hw, hh, unit } = shapeLocalHalfSize(ctx, shape, rect);
+  const pad = Math.max(6, unit * 0.18);
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(shape.rotation);
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.strokeStyle = '#111111';
+  ctx.strokeRect(-hw - pad, -hh - pad, (hw + pad) * 2, (hh + pad) * 2);
+  // Corner dots for a more "handle-ish" feel
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#111111';
+  const dot = 3;
+  const cx = hw + pad;
+  const cy = hh + pad;
+  for (const [sx, sy] of [
+    [-cx, -cy],
+    [cx, -cy],
+    [-cx, cy],
+    [cx, cy],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, dot, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* -----------------------------------------------------------------------------
+   Hit testing — returns the topmost shape at the given point, or null.
+   Coordinates must be in the same space as the render's (width, height).
+   ----------------------------------------------------------------------------- */
+const hitCtx = (() => {
+  const c = document.createElement('canvas');
+  c.width = 1;
+  c.height = 1;
+  return c.getContext('2d')!;
+})();
+
+export function hitTestShape(
+  state: Composition,
+  rect: { w: number; h: number },
+  pointX: number,
+  pointY: number
+): Shape | null {
+  const layout = composeFromState(state);
+  const { scale, originX, originY } = getLayoutViewTransform(
+    layout,
+    rect.w,
+    rect.h
+  );
+  const colorRect: Rect = {
+    x: originX + layout.colorRect.x * scale,
+    y: originY + layout.colorRect.y * scale,
+    w: layout.colorRect.w * scale,
+    h: layout.colorRect.h * scale,
+  };
+
+  // Short-circuit: point must be within color block (that's where shapes live)
+  if (
+    pointX < colorRect.x ||
+    pointX > colorRect.x + colorRect.w ||
+    pointY < colorRect.y ||
+    pointY > colorRect.y + colorRect.h
+  ) {
+    return null;
+  }
+
+  // Iterate in reverse (top-most shapes first)
+  for (let i = state.shapes.length - 1; i >= 0; i -= 1) {
+    const shape = state.shapes[i];
+    if (!shape) continue;
+    if (shapeContainsPoint(shape, colorRect, pointX, pointY)) return shape;
+  }
+  return null;
+}
+
+function shapeContainsPoint(
+  shape: Shape,
+  colorRect: Rect,
+  pointX: number,
+  pointY: number
+): boolean {
+  const cx = colorRect.x + shape.x * colorRect.w;
+  const cy = colorRect.y + shape.y * colorRect.h;
+  // Inverse-transform into shape-local coords (pre-rotation, pre-scale-down)
+  const dx = pointX - cx;
+  const dy = pointY - cy;
+  const cos = Math.cos(-shape.rotation);
+  const sin = Math.sin(-shape.rotation);
+  const lx = dx * cos - dy * sin;
+  const ly = dx * sin + dy * cos;
+
+  if (shape.kind === 'text') {
+    const { hw, hh } = shapeLocalHalfSize(hitCtx, shape, colorRect);
+    return Math.abs(lx) <= hw && Math.abs(ly) <= hh;
+  }
+
+  const unit = Math.min(colorRect.w, colorRect.h) * shape.size * 0.5;
+  if (unit <= 0) return false;
+  const ux = lx / unit;
+  const uy = ly / unit;
+  if (ux < -1.2 || ux > 1.2 || uy < -1.2 || uy > 1.2) return false;
+  const path = getShapePath(shape.kind);
+  return hitCtx.isPointInPath(path, ux, uy);
+}
+
+/**
+ * 将构图等比放入 (w×h)，与 render 一致，并居中以消除子像素比例偏差时的左上留白感。
+ */
+function getLayoutViewTransform(
+  layout: ComposedLayout,
+  w: number,
+  h: number
+): { scale: number; originX: number; originY: number } {
+  const scale = Math.min(w / layout.canvasW, h / layout.canvasH);
+  const originX = (w - layout.canvasW * scale) * 0.5;
+  const originY = (h - layout.canvasH * scale) * 0.5;
+  return { scale, originX, originY };
+}
+
+export interface RenderOptions {
+  /** Output canvas pixel width — must match composed layout scaled. */
+  width: number;
+  /** Output canvas pixel height. */
+  height: number;
+  /** Whether to draw the current selection indicator (omit for exports). */
+  showSelection?: boolean;
+}
+
+/**
+ * Render the composition into `ctx` sized to (width, height).
+ * The composed layout is scaled uniformly to match the requested target size.
+ */
 export function render(
   ctx: CanvasRenderingContext2D,
   state: Composition,
-  { width, height }: RenderOptions
+  options: RenderOptions
 ): void {
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(0, 0, width, height);
-
-  const { imageRect, colorRect } = computeRects(
-    state.layout,
-    state.splitRatio,
+  const { width, height, showSelection = false } = options;
+  const layout = composeFromState(state);
+  const { scale, originX, originY } = getLayoutViewTransform(
+    layout,
     width,
     height
   );
 
-  // --- Image half ----------------------------------------------------------
+  const imageRect: Rect = {
+    x: originX + layout.imageRect.x * scale,
+    y: originY + layout.imageRect.y * scale,
+    w: layout.imageRect.w * scale,
+    h: layout.imageRect.h * scale,
+  };
+  const colorRect: Rect = {
+    x: originX + layout.colorRect.x * scale,
+    y: originY + layout.colorRect.y * scale,
+    w: layout.colorRect.w * scale,
+    h: layout.colorRect.h * scale,
+  };
+
+  ctx.save();
+  // 不可重置为 identity：调用方在预览画布上已设 dpr 变换；否则会只在物理像素区左上角作图，出现「拼图挤在 canvas 左上、右下大量留白」。
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, width, height);
+
+  // --- Image half ---------------------------------------------------------
   if (state.image) {
-    ctx.save();
-    const path = new Path2D();
-    path.rect(imageRect.x, imageRect.y, imageRect.w, imageRect.h);
-    ctx.clip(path);
-    if (state.imageFit === 'contain') {
-      ctx.fillStyle = IMAGE_PAD_BG;
-      ctx.fillRect(imageRect.x, imageRect.y, imageRect.w, imageRect.h);
-      drawImageContain(ctx, state.image, imageRect);
-    } else {
-      drawImageCover(ctx, state.image, imageRect);
-    }
-    ctx.restore();
+    ctx.drawImage(state.image, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
   } else {
-    // Placeholder for empty image half
-    ctx.save();
-    ctx.fillStyle = '#F4F2EC';
+    ctx.fillStyle = PLACEHOLDER_IVORY;
     ctx.fillRect(imageRect.x, imageRect.y, imageRect.w, imageRect.h);
-    ctx.strokeStyle = '#D6D3C9';
+    ctx.strokeStyle = PLACEHOLDER_HAIRLINE;
     ctx.setLineDash([6, 6]);
     ctx.lineWidth = 1;
     ctx.strokeRect(
@@ -187,16 +376,15 @@ export function render(
       imageRect.w - 24,
       imageRect.h - 24
     );
-    ctx.restore();
+    ctx.setLineDash([]);
   }
 
-  // --- Color block ---------------------------------------------------------
+  // --- Color block --------------------------------------------------------
   const blockLayer = document.createElement('canvas');
   blockLayer.width = Math.max(1, Math.round(colorRect.w));
   blockLayer.height = Math.max(1, Math.round(colorRect.h));
   const bctx = blockLayer.getContext('2d');
   if (bctx) {
-    // Start filled with the block color
     bctx.fillStyle = state.blockColor;
     bctx.fillRect(0, 0, blockLayer.width, blockLayer.height);
 
@@ -207,16 +395,12 @@ export function render(
       h: blockLayer.height,
     };
 
-    // Solid shapes
     for (const s of state.shapes) {
       if (s.fillMode !== 'solid') continue;
       bctx.fillStyle = s.color;
       drawShape(bctx, s, localRect);
     }
 
-    // Cutouts: punch through the block layer to reveal a cover-fit copy of
-    // the image underneath. This is how DNA cutouts work (like raindrops in
-    // reference image ②).
     const cutouts = state.shapes.filter((s) => s.fillMode === 'cutout');
     if (cutouts.length > 0 && state.image) {
       bctx.save();
@@ -227,29 +411,26 @@ export function render(
       }
       bctx.restore();
 
-      // Replace the holes with the cover-fit image region at the color block
-      // coordinates of the *full canvas* (so the image reads continuously).
-      const coverBacking = buildCoverBacking(state.image, width, height);
       bctx.save();
       bctx.globalCompositeOperation = 'destination-over';
-      bctx.drawImage(
-        coverBacking,
-        colorRect.x,
-        colorRect.y,
-        blockLayer.width,
-        blockLayer.height,
-        0,
-        0,
-        blockLayer.width,
-        blockLayer.height
+      const iw = state.image.naturalWidth;
+      const ih = state.image.naturalHeight;
+      const coverScale = Math.max(
+        blockLayer.width / iw,
+        blockLayer.height / ih
       );
+      const dw = iw * coverScale;
+      const dh = ih * coverScale;
+      const dx = (blockLayer.width - dw) / 2;
+      const dy = (blockLayer.height - dh) / 2;
+      bctx.drawImage(state.image, dx, dy, dw, dh);
       bctx.restore();
     }
 
     ctx.drawImage(blockLayer, colorRect.x, colorRect.y);
   }
 
-  // --- Caption -------------------------------------------------------------
+  // --- Caption ------------------------------------------------------------
   if (state.caption.enabled) {
     const text =
       state.caption.text.trim() !== ''
@@ -269,6 +450,14 @@ export function render(
         colorRect.y + colorRect.h / 2
       );
     }
+  }
+
+  // --- Selection indicator (on top of everything) -------------------------
+  if (showSelection && state.selectedShapeId) {
+    const selected = state.shapes.find(
+      (s) => s.id === state.selectedShapeId
+    );
+    if (selected) drawSelection(ctx, selected, colorRect);
   }
 
   ctx.restore();

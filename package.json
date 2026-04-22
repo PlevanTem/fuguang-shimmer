@@ -1,9 +1,9 @@
 {
-  "name": "shimmer",
+  "name": "fuguang-shimmer",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "浮光 · Shimmer — a niche aesthetic creative image design tool. Landing prototype.",
+  "description": "浮光 Shimmer — 小众美学创意图片设计（色彩日记 / 色块拼贴，浏览器端 Web Canvas，MVP。）",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

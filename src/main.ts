@@ -1,10 +1,25 @@
 import './style.css';
 
 import { store } from './state';
-import type { Composition, FillMode, Layout, Ratio, ShapeKind } from './types';
+import type { Composition, FillMode, Layout, Shape, ShapeKind } from './types';
 import { extractPalette, buildAutoCaption, contrastInk } from './palette';
 import { SHAPE_KINDS, randomShapeId } from './shapes';
-import { ratioToDimensions, render, computeRects } from './render';
+import {
+  render,
+  composeFromState,
+  scaleLayoutToMaxEdge,
+  chooseReadableLayout,
+  hitTestShape,
+} from './render';
+import {
+  initLang,
+  setLang,
+  getLang,
+  t,
+  tFormat,
+  notifyLangChange,
+  onLangChange,
+} from './i18n';
 
 /* =============================================================================
    DOM references (eagerly resolved — tolerant fallbacks not needed for MVP)
@@ -19,23 +34,24 @@ const fileInput = $<HTMLInputElement>('file-input');
 const uploadZone = $<HTMLDivElement>('upload-zone');
 const fileNameEl = $<HTMLSpanElement>('file-name');
 
-const ratioSelect = $<HTMLSelectElement>('ratio-select');
 const resetBtn = $<HTMLButtonElement>('reset-btn');
 const exportBtn = $<HTMLButtonElement>('export-btn');
 
 const layoutGrid = $<HTMLDivElement>('layout-grid');
-const splitRange = $<HTMLInputElement>('split-range');
-const splitValueEl = $<HTMLOutputElement>('split-value');
-const fitGroup = $<HTMLDivElement>('fit-group');
 
 const paletteChips = $<HTMLDivElement>('palette-chips');
 const paletteHint = $<HTMLSpanElement>('palette-hint');
 
 const modeGroup = $<HTMLDivElement>('mode-group');
 const shapeColorInput = $<HTMLInputElement>('shape-color');
+const sizeRange = $<HTMLInputElement>('size-range');
+const sizeValueEl = $<HTMLOutputElement>('size-value');
 const shapeGrid = $<HTMLDivElement>('shape-grid');
+const shapeTextInput = $<HTMLInputElement>('shape-text-input');
+const addTextBtn = $<HTMLButtonElement>('add-text-btn');
 const scatterBtn = $<HTMLButtonElement>('scatter-btn');
 const clearShapesBtn = $<HTMLButtonElement>('clear-shapes-btn');
+const selectionHint = $<HTMLParagraphElement>('selection-hint');
 
 const captionEnabled = $<HTMLInputElement>('caption-enabled');
 const captionText = $<HTMLInputElement>('caption-text');
@@ -44,6 +60,7 @@ const fontGroup = $<HTMLDivElement>('font-group');
 
 const stage = $<HTMLElement>('stage');
 const stageInner = $<HTMLDivElement>('stage-inner');
+const stageEmpty = $<HTMLDivElement>('stage-empty');
 const stageMeta = $<HTMLParagraphElement>('stage-meta');
 const canvas = $<HTMLCanvasElement>('canvas');
 const ctx = canvas.getContext('2d');
@@ -51,18 +68,23 @@ if (!ctx) throw new Error('Canvas 2D context unavailable');
 
 const downloadAnchor = $<HTMLAnchorElement>('download-anchor');
 
+const zoomHud = $<HTMLDivElement>('zoom-hud');
+const zoomOutBtn = $<HTMLButtonElement>('zoom-out-btn');
+const zoomValBtn = $<HTMLButtonElement>('zoom-val-btn');
+const zoomInBtn = $<HTMLButtonElement>('zoom-in-btn');
+
 /* =============================================================================
    Shape grid — populated from the SHAPE_KINDS registry
    ============================================================================= */
 function buildShapeGrid(): void {
   shapeGrid.innerHTML = '';
-  for (const { kind, label } of SHAPE_KINDS) {
+  for (const { kind } of SHAPE_KINDS) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'shape-btn';
     btn.dataset.kind = kind;
-    btn.title = `Add ${label}`;
-    btn.setAttribute('aria-label', `Add ${label}`);
+    btn.dataset.shapeKind = kind;
+    refreshShapeBtnLabel(btn, kind);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '-1.1 -1.1 2.2 2.2');
@@ -74,6 +96,22 @@ function buildShapeGrid(): void {
 
     btn.addEventListener('click', () => addShape(kind, 1));
     shapeGrid.appendChild(btn);
+  }
+}
+
+function refreshShapeBtnLabel(btn: HTMLButtonElement, kind: ShapeKind): void {
+  const name = t(`shape.${kind}`);
+  const label = tFormat('shape.add', name);
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+}
+
+function refreshAllShapeBtnLabels(): void {
+  for (const btn of shapeGrid.querySelectorAll<HTMLButtonElement>(
+    '[data-shape-kind]'
+  )) {
+    const kind = btn.dataset.shapeKind as ShapeKind;
+    refreshShapeBtnLabel(btn, kind);
   }
 }
 
@@ -220,7 +258,11 @@ function replayShape(
    ============================================================================= */
 async function loadFile(file: File): Promise<void> {
   if (!file.type.startsWith('image/')) {
-    window.alert('Please pick an image file (JPG / PNG / WebP / GIF).');
+    window.alert(
+      getLang() === 'zh'
+        ? '请选一张图片文件（JPG / PNG / WebP / GIF）。'
+        : 'Please pick an image file (JPG / PNG / WebP / GIF).'
+    );
     return;
   }
   const src = URL.createObjectURL(file);
@@ -230,20 +272,38 @@ async function loadFile(file: File): Promise<void> {
   try {
     await img.decode();
   } catch {
-    window.alert('Could not decode this image.');
+    window.alert(
+      getLang() === 'zh' ? '无法解析这张图片。' : 'Could not decode this image.'
+    );
     URL.revokeObjectURL(src);
     return;
   }
   const palette = extractPalette(img, 5);
   const firstColor = palette[0] ?? store.get().palette[0] ?? '#E6B422';
+  const nextLayout = chooseReadableLayout(
+    img.naturalWidth,
+    img.naturalHeight,
+    store.get().layout
+  );
+  viewZoom = 1;
   store.set({
     image: img,
     imageName: file.name,
     palette: palette.length > 0 ? palette : store.get().palette,
     blockColor: firstColor,
     shapes: [],
+    selectedShapeId: null,
+    layout: nextLayout,
   });
   fileNameEl.textContent = file.name;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (store.get().image) {
+        centerStageScroll();
+        syncZoomHud();
+      }
+    });
+  });
 }
 
 function wireFileInput(): void {
@@ -312,29 +372,6 @@ function wireLayoutGrid(): void {
   });
 }
 
-function wireSplitRange(): void {
-  splitRange.addEventListener('input', () => {
-    const val = parseInt(splitRange.value, 10) / 100;
-    store.set({ splitRatio: val });
-  });
-}
-
-function wireFitGroup(): void {
-  fitGroup.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-      '[data-fit]'
-    );
-    if (!btn) return;
-    store.set({ imageFit: btn.dataset.fit as Composition['imageFit'] });
-  });
-}
-
-function wireRatioSelect(): void {
-  ratioSelect.addEventListener('change', () => {
-    store.set({ ratio: ratioSelect.value as Ratio });
-  });
-}
-
 function wireModeGroup(): void {
   modeGroup.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
@@ -349,6 +386,43 @@ function wireShapeColor(): void {
   shapeColorInput.addEventListener('input', () => {
     store.set({ activeShapeColor: shapeColorInput.value });
   });
+}
+
+function wireShapeSize(): void {
+  sizeRange.addEventListener('input', () => {
+    const size = parseInt(sizeRange.value, 10) / 100;
+    const s = store.get();
+    // If a shape is currently selected, resize it live. Otherwise just update
+    // the "default for future shapes" setting.
+    if (s.selectedShapeId) {
+      const shapes = s.shapes.map((sh) =>
+        sh.id === s.selectedShapeId ? { ...sh, size } : sh
+      );
+      store.set({ activeShapeSize: size, shapes });
+    } else {
+      store.set({ activeShapeSize: size });
+    }
+  });
+}
+
+function wireTextAdder(): void {
+  const submit = (): void => {
+    const text = shapeTextInput.value.trim();
+    if (!text) return;
+    addShape('text', 1, { text });
+    shapeTextInput.value = '';
+    store.set({ activeShapeText: '' });
+  };
+  shapeTextInput.addEventListener('input', () => {
+    store.set({ activeShapeText: shapeTextInput.value });
+  });
+  shapeTextInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submit();
+    }
+  });
+  addTextBtn.addEventListener('click', submit);
 }
 
 function wireCaption(): void {
@@ -374,20 +448,157 @@ function wireCaption(): void {
   });
 }
 
+/* =============================================================================
+   Canvas pointer interactions — click to select, drag to move.
+   Coordinates: pointer events arrive in CSS pixels; our render also works in
+   CSS pixels (DPR is applied via ctx.setTransform). So event coords inside
+   the canvas map 1:1 to the same space render() uses.
+   ============================================================================= */
+interface DragState {
+  pointerId: number;
+  shapeId: string;
+  startX: number;
+  startY: number;
+  shapeStartX: number;
+  shapeStartY: number;
+}
+let drag: DragState | null = null;
+
+function getCanvasPoint(ev: PointerEvent | MouseEvent): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ev.clientX - rect.left,
+    y: ev.clientY - rect.top,
+  };
+}
+
+function wireCanvasInteraction(): void {
+  canvas.addEventListener('pointerdown', (e) => {
+    const pt = getCanvasPoint(e);
+    const s = store.get();
+    const hit = hitTestShape(
+      s,
+      { w: currentCanvasSize.cssW, h: currentCanvasSize.cssH },
+      pt.x,
+      pt.y
+    );
+    if (hit) {
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      drag = {
+        pointerId: e.pointerId,
+        shapeId: hit.id,
+        startX: pt.x,
+        startY: pt.y,
+        shapeStartX: hit.x,
+        shapeStartY: hit.y,
+      };
+      canvas.classList.add('is-dragging-shape');
+      store.set({ selectedShapeId: hit.id });
+    } else if (s.selectedShapeId) {
+      store.set({ selectedShapeId: null });
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (drag && e.pointerId === drag.pointerId) {
+      const pt = getCanvasPoint(e);
+      const s = store.get();
+      const layout = composeFromState(s);
+      const scale = Math.min(
+        currentCanvasSize.cssW / layout.canvasW,
+        currentCanvasSize.cssH / layout.canvasH
+      );
+      const crWcss = layout.colorRect.w * scale;
+      const crHcss = layout.colorRect.h * scale;
+      if (crWcss <= 0 || crHcss <= 0) return;
+      // Delta in color-rect-normalized units.
+      const dxNorm = (pt.x - drag.startX) / crWcss;
+      const dyNorm = (pt.y - drag.startY) / crHcss;
+      const nextX = clamp(drag.shapeStartX + dxNorm, 0, 1);
+      const nextY = clamp(drag.shapeStartY + dyNorm, 0, 1);
+      const shapes = s.shapes.map((sh) =>
+        sh.id === drag!.shapeId ? { ...sh, x: nextX, y: nextY } : sh
+      );
+      store.set({ shapes });
+      return;
+    }
+
+    // Hover cursor hint (pointer not pressed)
+    const pt = getCanvasPoint(e);
+    const s = store.get();
+    const hit = hitTestShape(
+      s,
+      { w: currentCanvasSize.cssW, h: currentCanvasSize.cssH },
+      pt.x,
+      pt.y
+    );
+    canvas.classList.toggle('is-hovering-shape', !!hit);
+  });
+
+  const endDrag = (e: PointerEvent): void => {
+    if (drag && e.pointerId === drag.pointerId) {
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer may already have been released
+      }
+      drag = null;
+      canvas.classList.remove('is-dragging-shape');
+    }
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerleave', () => {
+    canvas.classList.remove('is-hovering-shape');
+  });
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+function wireKeyboard(): void {
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    // Don't hijack typing in inputs
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    const s = store.get();
+    if (!s.selectedShapeId) return;
+    e.preventDefault();
+    const shapes = s.shapes.filter((sh) => sh.id !== s.selectedShapeId);
+    store.set({ shapes, selectedShapeId: null });
+  });
+}
+
 function wireTopBar(): void {
   resetBtn.addEventListener('click', () => {
     const s = store.get();
+    const naturalLayout = s.image
+      ? chooseReadableLayout(
+          s.image.naturalWidth,
+          s.image.naturalHeight,
+          'image-bottom'
+        )
+      : 'image-bottom';
     store.set({
-      layout: 'image-bottom',
-      splitRatio: 0.5,
-      imageFit: 'contain',
+      layout: naturalLayout,
       blockColor: s.palette[0] ?? s.blockColor,
       shapes: [],
+      selectedShapeId: null,
+      activeShapeSize: 0.12,
       caption: { ...s.caption, text: '' },
     });
-    splitRange.value = '50';
-    splitValueEl.value = '50%';
     captionText.value = '';
+    shapeTextInput.value = '';
   });
 
   exportBtn.addEventListener('click', () => {
@@ -398,34 +609,95 @@ function wireTopBar(): void {
 /* =============================================================================
    Shape interactions
    ============================================================================= */
-function addShape(kind: ShapeKind, count: number): void {
+/**
+ * Blue-noise position sampler using Mitchell's best-candidate algorithm.
+ * For each new point, generate N random candidates and pick the one whose
+ * nearest neighbor among `existing` is farthest. Points also stay away from
+ * the edges of the color block.
+ */
+function pickScatterPosition(
+  existing: Array<{ x: number; y: number }>
+): { x: number; y: number } {
+  const CANDIDATES = 14;
+  const MARGIN = 0.08;
+  let best = { x: 0.5, y: 0.5 };
+  let bestScore = -1;
+  for (let i = 0; i < CANDIDATES; i += 1) {
+    const cx = MARGIN + Math.random() * (1 - MARGIN * 2);
+    const cy = MARGIN + Math.random() * (1 - MARGIN * 2);
+    let minDistSq = 4;
+    for (const p of existing) {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const dsq = dx * dx + dy * dy;
+      if (dsq < minDistSq) minDistSq = dsq;
+    }
+    if (minDistSq > bestScore) {
+      bestScore = minDistSq;
+      best = { x: cx, y: cy };
+    }
+  }
+  return best;
+}
+
+interface AddShapeOptions {
+  text?: string;
+}
+
+function addShape(
+  kind: ShapeKind,
+  count: number,
+  opts: AddShapeOptions = {}
+): string | null {
   const s = store.get();
-  const newShapes: Composition['shapes'] = [];
+  if (kind === 'text' && (!opts.text || opts.text.trim() === '')) return null;
+
+  const positions = s.shapes.map((sh) => ({ x: sh.x, y: sh.y }));
+  const newShapes: Shape[] = [];
   for (let i = 0; i < count; i += 1) {
-    newShapes.push({
+    const pos = pickScatterPosition(positions);
+    positions.push(pos);
+    const shape: Shape = {
       id: randomShapeId(),
       kind,
-      x: 0.15 + Math.random() * 0.7,
-      y: 0.15 + Math.random() * 0.7,
-      size: 0.08 + Math.random() * 0.1,
-      rotation: (Math.random() - 0.5) * Math.PI * 0.6,
+      x: pos.x,
+      y: pos.y,
+      // Uniform default size — no more random jitter — user controls via slider.
+      size: s.activeShapeSize,
+      // A small rotation jitter still looks more hand-placed than axis-aligned
+      // text. For text shapes, keep rotation at 0 so it stays readable.
+      rotation:
+        kind === 'text' ? 0 : (Math.random() - 0.5) * Math.PI * 0.35,
       color: s.activeShapeColor,
       fillMode: s.activeFillMode,
-    });
+      ...(kind === 'text' && {
+        text: opts.text!,
+        font: s.caption.font,
+      }),
+    };
+    newShapes.push(shape);
   }
-  store.set({ shapes: [...s.shapes, ...newShapes] });
+  const appended = [...s.shapes, ...newShapes];
+  const lastId = newShapes[newShapes.length - 1]?.id ?? null;
+  store.set({ shapes: appended, selectedShapeId: lastId });
+  return lastId;
 }
 
 function scatterCurrent(): void {
-  // Re-add 8 of the last-used shape kind — default to "dot" if none yet
   const s = store.get();
   const last = s.shapes[s.shapes.length - 1];
-  const kind: ShapeKind = last ? last.kind : 'dot';
+  if (last && last.kind === 'text') {
+    addShape('text', 8, { text: last.text ?? '' });
+    return;
+  }
+  const kind: ShapeKind = last ? last.kind : 'star';
   addShape(kind, 8);
 }
 
 scatterBtn.addEventListener('click', scatterCurrent);
-clearShapesBtn.addEventListener('click', () => store.set({ shapes: [] }));
+clearShapesBtn.addEventListener('click', () =>
+  store.set({ shapes: [], selectedShapeId: null })
+);
 
 /* =============================================================================
    Export
@@ -433,10 +705,13 @@ clearShapesBtn.addEventListener('click', () => store.set({ shapes: [] }));
 function exportPng(): void {
   const s = store.get();
   if (!s.image) {
-    window.alert('Upload a photo first.');
+    window.alert(
+      getLang() === 'zh' ? '先上传一张照片。' : 'Upload a photo first.'
+    );
     return;
   }
-  const { width, height } = ratioToDimensions(s.ratio, 2000);
+  const composed = composeFromState(s);
+  const { width, height } = scaleLayoutToMaxEdge(composed, 2400);
   const off = document.createElement('canvas');
   off.width = width;
   off.height = height;
@@ -449,9 +724,9 @@ function exportPng(): void {
       const url = URL.createObjectURL(blob);
       const stem = s.imageName
         ? s.imageName.replace(/\.[^/.]+$/, '')
-        : 'shimmer';
+        : 'fuguang';
       downloadAnchor.href = url;
-      downloadAnchor.download = `${stem}__${s.ratio.replace(':', 'x')}__${Date.now()}.png`;
+      downloadAnchor.download = `${stem}__${width}x${height}__${Date.now()}.png`;
       downloadAnchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     },
@@ -465,23 +740,54 @@ function exportPng(): void {
    ============================================================================= */
 let currentCanvasSize = { cssW: 0, cssH: 0 };
 
+/** 用户缩放倍数，基于「cover 填满预览区」后的基准尺寸。 */
+const VIEW_ZOOM_MIN = 0.25;
+const VIEW_ZOOM_MAX = 4;
+let viewZoom = 1;
+
+function centerStageScroll(): void {
+  const el = stageInner;
+  const sw = el.scrollWidth - el.clientWidth;
+  const sh = el.scrollHeight - el.clientHeight;
+  if (sw > 0) el.scrollLeft = sw * 0.5;
+  if (sh > 0) el.scrollTop = sh * 0.5;
+}
+
+/**
+ * 默认用「contain」在 stage 内完整放下拼图（一眼能看全），再乘 viewZoom；滚轮/按钮可再放大看细节。
+ * CSS 宽高锁定与布局比例一致，避免在 Bitmap 与 render 中双重留白。
+ */
 function fitCanvasToStage(state: Composition): void {
   const rect = stageInner.getBoundingClientRect();
-  const { width: ratioW, height: ratioH } = ratioToDimensions(state.ratio, 1);
-  const canvasRatio = ratioW / ratioH;
-  const stageRatio = rect.width / rect.height;
-
+  const composed = composeFromState(state);
+  const rw = Math.max(1, rect.width);
+  const rh = Math.max(1, rect.height);
+  const cW = composed.canvasW;
+  const cH = composed.canvasH;
+  const fitScale = Math.min(rw / cW, rh / cH);
+  const s = fitScale * viewZoom;
+  // 锁定与构图相同宽高比，避免 CSS 与 render 目标框比例微偏。
   let cssW: number;
   let cssH: number;
-  if (canvasRatio > stageRatio) {
-    cssW = rect.width;
-    cssH = rect.width / canvasRatio;
+  if (cW >= cH) {
+    cssW = Math.max(64, Math.floor(cW * s + 0.5));
+    const h = Math.round((cssW * cH) / cW);
+    if (h < 64) {
+      cssH = 64;
+      cssW = Math.max(64, Math.round((64 * cW) / cH));
+    } else {
+      cssH = h;
+    }
   } else {
-    cssH = rect.height;
-    cssW = rect.height * canvasRatio;
+    cssH = Math.max(64, Math.floor(cH * s + 0.5));
+    const w = Math.round((cssH * cW) / cH);
+    if (w < 64) {
+      cssW = 64;
+      cssH = Math.max(64, Math.round((64 * cH) / cW));
+    } else {
+      cssW = w;
+    }
   }
-  cssW = Math.max(64, Math.floor(cssW));
-  cssH = Math.max(64, Math.floor(cssH));
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.style.width = `${cssW}px`;
@@ -497,6 +803,62 @@ function paint(state: Composition): void {
   render(ctx!, state, {
     width: currentCanvasSize.cssW,
     height: currentCanvasSize.cssH,
+    showSelection: true,
+  });
+}
+
+function syncZoomHud(): void {
+  if (!store.get().image) return;
+  zoomValBtn.textContent = `${Math.round(viewZoom * 100)}%`;
+}
+
+/**
+ * 更新用户缩放。recenter 时滚轮/按钮缩放后把滚动位置回中（便于看全局）。
+ */
+function applyViewZoom(
+  next: number,
+  opts: { recenter?: boolean } = { recenter: true }
+): void {
+  if (!store.get().image) return;
+  const clamped = clamp(next, VIEW_ZOOM_MIN, VIEW_ZOOM_MAX);
+  if (Math.abs(clamped - viewZoom) < 1e-5) return;
+  viewZoom = clamped;
+  paint(store.get());
+  syncZoomHud();
+  if (opts.recenter) {
+    requestAnimationFrame(() => centerStageScroll());
+  }
+}
+
+function wireStageZoom(): void {
+  const onWheel = (e: WheelEvent): void => {
+    if (!store.get().image) return;
+    const canScrollH = stageInner.scrollWidth > stageInner.clientWidth + 0.5;
+    const canScrollV = stageInner.scrollHeight > stageInner.clientHeight + 0.5;
+    const modifierZoom = e.ctrlKey || e.metaKey;
+    const canWheelOnlyZoom = !canScrollH && !canScrollV;
+    if (!modifierZoom && !canWheelOnlyZoom) return;
+    e.preventDefault();
+    const up = e.deltaY < 0;
+    const factor = Math.exp((up ? 1 : -1) * 0.09);
+    applyViewZoom(viewZoom * factor);
+  };
+  stageInner.addEventListener('wheel', onWheel, { passive: false });
+}
+
+function wireZoomHud(): void {
+  zoomInBtn.addEventListener('click', () => {
+    applyViewZoom(viewZoom * 1.1);
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    applyViewZoom(viewZoom / 1.1);
+  });
+  zoomValBtn.addEventListener('click', () => {
+    applyViewZoom(1, { recenter: true });
+  });
+  zoomValBtn.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    applyViewZoom(1, { recenter: true });
   });
 }
 
@@ -505,7 +867,17 @@ function paint(state: Composition): void {
    ============================================================================= */
 let lastPalette = '';
 
+function syncEmptyState(state: Composition): void {
+  const hasImage = !!state.image;
+  stageEmpty.hidden = hasImage;
+  stageInner.hidden = !hasImage;
+  stageMeta.hidden = !hasImage;
+  zoomHud.hidden = !hasImage;
+}
+
 function syncUi(state: Composition): void {
+  syncEmptyState(state);
+
   // Layout chips
   for (const btn of layoutGrid.querySelectorAll<HTMLButtonElement>(
     '[data-layout]'
@@ -516,25 +888,6 @@ function syncUi(state: Composition): void {
       btn.dataset.layout === state.layout ? 'true' : 'false'
     );
   }
-
-  // Split range
-  const pct = Math.round(state.splitRatio * 100);
-  if (splitRange.value !== String(pct)) splitRange.value = String(pct);
-  splitValueEl.value = `${pct}%`;
-
-  // Fit group
-  for (const btn of fitGroup.querySelectorAll<HTMLButtonElement>(
-    '[data-fit]'
-  )) {
-    btn.classList.toggle('is-active', btn.dataset.fit === state.imageFit);
-    btn.setAttribute(
-      'aria-checked',
-      btn.dataset.fit === state.imageFit ? 'true' : 'false'
-    );
-  }
-
-  // Ratio select
-  if (ratioSelect.value !== state.ratio) ratioSelect.value = state.ratio;
 
   // Fill mode
   for (const btn of modeGroup.querySelectorAll<HTMLButtonElement>(
@@ -547,6 +900,22 @@ function syncUi(state: Composition): void {
     );
   }
   shapeColorInput.value = state.activeShapeColor;
+
+  // Shape size — when something is selected, the slider reflects that shape
+  // (the slider is a live control for it). Otherwise it reflects the default
+  // for new shapes.
+  const selectedShape = state.selectedShapeId
+    ? state.shapes.find((sh) => sh.id === state.selectedShapeId) ?? null
+    : null;
+  const displayedSize = selectedShape
+    ? selectedShape.size
+    : state.activeShapeSize;
+  const pctSize = Math.round(displayedSize * 100);
+  if (sizeRange.value !== String(pctSize)) sizeRange.value = String(pctSize);
+  sizeValueEl.value = displayedSize.toFixed(2);
+
+  // Selection hint
+  selectionHint.hidden = !state.selectedShapeId;
 
   // Palette chips — only re-render when palette actually changes
   const paletteKey = state.palette.join('|');
@@ -565,15 +934,18 @@ function syncUi(state: Composition): void {
     }
   }
   paletteHint.textContent = state.image
-    ? `${state.palette.length} swatches extracted`
-    : 'upload an image first';
+    ? tFormat('palette.hint.extracted', state.palette.length)
+    : t('palette.hint.empty');
 
   // Caption
   if (captionEnabled.checked !== state.caption.enabled)
     captionEnabled.checked = state.caption.enabled;
   if (captionText.value !== state.caption.text)
     captionText.value = state.caption.text;
-  captionAutoHint.textContent = `auto: ${buildAutoCaption(state.blockColor)}`;
+  captionAutoHint.textContent = tFormat(
+    'caption.auto',
+    buildAutoCaption(state.blockColor)
+  );
   for (const btn of fontGroup.querySelectorAll<HTMLButtonElement>(
     '[data-font]'
   )) {
@@ -585,28 +957,24 @@ function syncUi(state: Composition): void {
   }
 
   // Stage meta
-  const rects =
-    currentCanvasSize.cssW > 0
-      ? computeRects(
-          state.layout,
-          state.splitRatio,
-          currentCanvasSize.cssW,
-          currentCanvasSize.cssH
-        )
-      : null;
+  const composed = composeFromState(state);
+  const imgDims = state.image
+    ? `${state.image.naturalWidth}×${state.image.naturalHeight}`
+    : '—';
+  const canvasDims = `${Math.round(composed.canvasW)}×${Math.round(composed.canvasH)}`;
   stageMeta.textContent = [
-    state.ratio,
-    rects
-      ? `${Math.round(rects.imageRect.w)}×${Math.round(rects.imageRect.h)} image · ${Math.round(rects.colorRect.w)}×${Math.round(rects.colorRect.h)} block`
-      : '—',
+    `${t('stage.meta.photo')} ${imgDims}`,
+    `${t('stage.meta.canvas')} ${canvasDims}`,
     state.blockColor,
   ].join('  ·  ');
 
   // File name
-  fileNameEl.textContent = state.imageName || 'no photo yet';
+  fileNameEl.textContent = state.imageName || t('file.empty');
 
   // Export button enabled only when image present
   exportBtn.disabled = !state.image;
+
+  if (state.image) syncZoomHud();
 }
 
 function renderPaletteChips(state: Composition): void {
@@ -645,17 +1013,59 @@ function renderPaletteChips(state: Composition): void {
 /* =============================================================================
    Bootstrap
    ============================================================================= */
+function wireLangToggle(): void {
+  const group = document.querySelector<HTMLDivElement>('.lang-toggle');
+  if (!group) return;
+  group.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+      '[data-lang]'
+    );
+    if (!btn) return;
+    const lang = btn.dataset.lang as 'zh' | 'en';
+    setLang(lang);
+    syncLangToggleUi();
+    refreshAllShapeBtnLabels();
+    notifyLangChange();
+    // Re-sync dynamic UI strings under the new language
+    store.set({}); // triggers a no-op update so syncUi runs with new t()
+  });
+}
+
+function syncLangToggleUi(): void {
+  const cur = getLang();
+  for (const btn of document.querySelectorAll<HTMLButtonElement>(
+    '.lang-toggle [data-lang]'
+  )) {
+    btn.classList.toggle('is-active', btn.dataset.lang === cur);
+    btn.setAttribute(
+      'aria-checked',
+      btn.dataset.lang === cur ? 'true' : 'false'
+    );
+  }
+}
+
 function init(): void {
+  initLang();
+  syncLangToggleUi();
+
   buildShapeGrid();
   wireFileInput();
   wireLayoutGrid();
-  wireSplitRange();
-  wireFitGroup();
-  wireRatioSelect();
   wireModeGroup();
   wireShapeColor();
+  wireShapeSize();
+  wireTextAdder();
+  wireCanvasInteraction();
+  wireKeyboard();
   wireCaption();
   wireTopBar();
+  wireLangToggle();
+  wireStageZoom();
+  wireZoomHud();
+
+  onLangChange(() => {
+    refreshAllShapeBtnLabels();
+  });
 
   let pending = false;
   const schedule = (state: Composition): void => {

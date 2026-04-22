@@ -8,18 +8,18 @@ export function createInitialState(): Composition {
     imageName: '',
     palette: ['#E6B422', '#B49BD0', '#9FB28A', '#D8A7A1', '#4A6BAF'],
     layout: 'image-bottom',
-    splitRatio: 0.5,
-    ratio: '3:4',
-    imageFit: 'contain',
     blockColor: '#E6B422',
     caption: {
       enabled: true,
       text: '',
       font: 'serif-italic',
     },
-    activeFillMode: 'solid',
+    activeFillMode: 'cutout',
     activeShapeColor: '#111111',
+    activeShapeSize: 0.12,
+    activeShapeText: '',
     shapes: [],
+    selectedShapeId: null,
   };
 }
 

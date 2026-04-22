@@ -6,6 +6,7 @@ import type { ShapeKind } from './types';
  * vocabulary tiny & recognizable matches the DNA's "hand-held zine" feel.
  */
 
+/** Geometric shapes only. Text is handled separately via a text input. */
 export const SHAPE_KINDS: ReadonlyArray<{ kind: ShapeKind; label: string }> = [
   { kind: 'dot', label: 'Dot' },
   { kind: 'drop', label: 'Drop' },
@@ -17,10 +18,16 @@ export const SHAPE_KINDS: ReadonlyArray<{ kind: ShapeKind; label: string }> = [
   { kind: 'hex', label: 'Hex' },
 ];
 
-/** Returns a Path2D sized to [-1, 1]². Callers scale via transform. */
+/**
+ * Returns a Path2D sized to [-1, 1]². Callers scale via transform.
+ * For 'text' kind a path is not meaningful — rendering goes through fillText
+ * and hit-testing uses a measured bbox. Returns an empty path.
+ */
 export function getShapePath(kind: ShapeKind): Path2D {
   const p = new Path2D();
   switch (kind) {
+    case 'text':
+      return p;
     case 'dot': {
       p.arc(0, 0, 1, 0, Math.PI * 2);
       return p;

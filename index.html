@@ -7,9 +7,9 @@
     <meta name="theme-color" content="#FAFAF7" />
     <meta
       name="description"
-      content="Shimmer — upload a photo, get a color-block diary. A niche aesthetic image design tool."
+      content="浮光 Shimmer — 一缕浮光，一段心情。用色彩记录生活的瞬时感动。浏览器内完成，图不上传。"
     />
-    <title>Shimmer — color diary editor</title>
+    <title>浮光 Shimmer — 色彩日记与拼贴编辑器</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,28 +24,26 @@
     <!-- ============================ Top bar ============================= -->
     <header class="top-bar">
       <div class="top-bar__brand">
-        <span class="wordmark">shimmer<span class="wordmark__dot">.</span></span>
+        <span class="wordmark">浮光<span class="wordmark__dot">·</span>shimmer</span>
         <span class="divider-v" aria-hidden="true"></span>
-        <span class="file-name" id="file-name" title="current photo">no photo yet</span>
+        <span class="file-name" id="file-name" data-i18n="file.empty">还没有照片</span>
       </div>
 
       <div class="top-bar__actions">
-        <label class="select">
-          <span class="select__label">Ratio</span>
-          <select id="ratio-select" aria-label="Aspect ratio">
-            <option value="3:4">3 : 4</option>
-            <option value="4:3">4 : 3</option>
-            <option value="1:1">1 : 1</option>
-            <option value="9:16">9 : 16</option>
-            <option value="16:9">16 : 9</option>
-          </select>
-        </label>
+        <div class="lang-toggle" role="radiogroup" aria-label="Language">
+          <button type="button" class="lang-toggle__btn is-active" data-lang="zh" role="radio">
+            中
+          </button>
+          <button type="button" class="lang-toggle__btn" data-lang="en" role="radio">
+            EN
+          </button>
+        </div>
 
-        <button id="reset-btn" class="btn btn--ghost btn--sm" type="button">
-          Reset
+        <button id="reset-btn" class="btn btn--ghost btn--sm" type="button" data-i18n="btn.reset">
+          重置
         </button>
         <button id="export-btn" class="btn btn--primary btn--sm" type="button">
-          <span>Export PNG</span>
+          <span data-i18n="btn.export">导出 PNG</span>
           <span class="btn__arrow" aria-hidden="true">↓</span>
         </button>
       </div>
@@ -58,13 +56,21 @@
         <!-- Upload -->
         <section class="panel__section">
           <div class="panel__head">
-            <p class="overline">01 · Source</p>
+            <p class="overline" data-i18n="section.source">01 · 来源</p>
           </div>
-          <div class="upload-zone" id="upload-zone" tabindex="0" role="button">
+          <div
+            class="upload-zone"
+            id="upload-zone"
+            tabindex="0"
+            role="button"
+            data-i18n-aria="upload.ariaLabel"
+          >
             <div class="upload-zone__body">
-              <span class="upload-zone__title serif-italic">Drop a photo</span>
-              <span class="upload-zone__hint">
-                或点击上传 · 支持粘贴 (Ctrl+V) · JPG / PNG / WebP
+              <span class="upload-zone__title serif-italic" data-i18n="upload.title">
+                拖一张照片进来
+              </span>
+              <span class="upload-zone__hint" data-i18n="upload.hint">
+                点击、拖拽、或粘贴 (Ctrl+V) · JPG / PNG / WebP
               </span>
             </div>
             <input
@@ -79,60 +85,36 @@
         <!-- Layout -->
         <section class="panel__section">
           <div class="panel__head">
-            <p class="overline">02 · Layout</p>
+            <p class="overline" data-i18n="section.layout">02 · 布局</p>
           </div>
           <div class="layout-grid" id="layout-grid" role="radiogroup" aria-label="Layout">
             <button type="button" class="layout-chip" data-layout="image-top" role="radio">
               <span class="layout-chip__glyph layout-chip__glyph--image-top" aria-hidden="true"></span>
-              <span>图 / 色</span>
+              <span data-i18n="layout.img-top">图 / 色</span>
             </button>
             <button type="button" class="layout-chip" data-layout="image-bottom" role="radio">
               <span class="layout-chip__glyph layout-chip__glyph--image-bottom" aria-hidden="true"></span>
-              <span>色 / 图</span>
+              <span data-i18n="layout.img-bottom">色 / 图</span>
             </button>
             <button type="button" class="layout-chip" data-layout="image-left" role="radio">
               <span class="layout-chip__glyph layout-chip__glyph--image-left" aria-hidden="true"></span>
-              <span>图 | 色</span>
+              <span data-i18n="layout.img-left">图 | 色</span>
             </button>
             <button type="button" class="layout-chip" data-layout="image-right" role="radio">
               <span class="layout-chip__glyph layout-chip__glyph--image-right" aria-hidden="true"></span>
-              <span>色 | 图</span>
+              <span data-i18n="layout.img-right">色 | 图</span>
             </button>
           </div>
-
-          <div class="field">
-            <div class="field__row">
-              <label class="field__label" for="split-range">Split</label>
-              <output class="field__value mono" id="split-value">50%</output>
-            </div>
-            <input
-              id="split-range"
-              type="range"
-              min="25"
-              max="75"
-              step="1"
-              value="50"
-            />
-          </div>
-
-          <div class="field">
-            <label class="field__label">Image fit</label>
-            <div class="segmented" id="fit-group" role="radiogroup" aria-label="Image fit">
-              <button type="button" class="segmented__btn" data-fit="contain" role="radio">
-                contain
-              </button>
-              <button type="button" class="segmented__btn" data-fit="cover" role="radio">
-                cover
-              </button>
-            </div>
-          </div>
+          <p class="field__hint mono" data-i18n="hint.layout-auto">
+            上传后根据照片比例自动选，色块与照片同尺寸
+          </p>
         </section>
 
         <!-- Palette -->
         <section class="panel__section">
           <div class="panel__head">
-            <p class="overline">03 · Palette</p>
-            <span class="panel__hint mono" id="palette-hint">upload an image first</span>
+            <p class="overline" data-i18n="section.palette">03 · 调色板</p>
+            <span class="panel__hint mono" id="palette-hint">先上传一张图</span>
           </div>
           <div class="palette-chips" id="palette-chips"></div>
         </section>
@@ -140,68 +122,127 @@
         <!-- Shapes -->
         <section class="panel__section">
           <div class="panel__head">
-            <p class="overline">04 · Shapes</p>
-            <span class="panel__hint mono">creative collage</span>
+            <p class="overline" data-i18n="section.shapes">04 · 形状</p>
+            <span class="panel__hint mono" data-i18n="shapes.sub">创意拼贴</span>
           </div>
 
           <div class="field">
-            <label class="field__label">Fill mode</label>
+            <label class="field__label" data-i18n="label.fill-mode">填充模式</label>
             <div class="segmented" id="mode-group" role="radiogroup" aria-label="Fill mode">
-              <button type="button" class="segmented__btn is-active" data-mode="solid" role="radio">
-                solid
+              <button
+                type="button"
+                class="segmented__btn"
+                data-mode="solid"
+                role="radio"
+                data-i18n="mode.solid"
+              >
+                实心
               </button>
-              <button type="button" class="segmented__btn" data-mode="cutout" role="radio">
-                cutout
+              <button
+                type="button"
+                class="segmented__btn is-active"
+                data-mode="cutout"
+                role="radio"
+                data-i18n="mode.cutout"
+              >
+                镂空
               </button>
             </div>
           </div>
 
           <div class="field" id="shape-color-field">
             <div class="field__row">
-              <label class="field__label" for="shape-color">Shape color</label>
+              <label class="field__label" for="shape-color" data-i18n="label.shape-color">
+                形状颜色
+              </label>
               <input id="shape-color" type="color" value="#111111" class="color-input" />
             </div>
           </div>
 
+          <div class="field">
+            <div class="field__row">
+              <label class="field__label" for="size-range" data-i18n="label.shape-size">
+                形状大小
+              </label>
+              <output class="field__value mono" id="size-value">0.12</output>
+            </div>
+            <input
+              id="size-range"
+              type="range"
+              min="4"
+              max="30"
+              step="1"
+              value="12"
+            />
+          </div>
+
           <div class="shape-grid" id="shape-grid"></div>
 
-          <div class="actions-row">
-            <button id="scatter-btn" class="btn btn--ghost btn--sm" type="button">
-              Scatter 8
-            </button>
-            <button id="clear-shapes-btn" class="btn btn--ghost btn--sm" type="button">
-              Clear
+          <div class="text-adder">
+            <input
+              id="shape-text-input"
+              type="text"
+              class="text-input"
+              data-i18n-placeholder="shape.text.placeholder"
+              placeholder="输入文字... 例如 浮光"
+              maxlength="40"
+            />
+            <button
+              id="add-text-btn"
+              class="btn btn--ghost btn--sm"
+              type="button"
+              data-i18n="shape.text.add"
+            >
+              添加文字
             </button>
           </div>
+
+          <div class="actions-row">
+            <button id="scatter-btn" class="btn btn--ghost btn--sm" type="button" data-i18n="btn.scatter">
+              撒 8 个
+            </button>
+            <button id="clear-shapes-btn" class="btn btn--ghost btn--sm" type="button" data-i18n="btn.clear">
+              清空
+            </button>
+          </div>
+
+          <p class="selection-hint mono" id="selection-hint" hidden data-i18n="shape.selected">
+            已选中 · 拖动移动 · Delete 删除
+          </p>
         </section>
 
         <!-- Caption -->
         <section class="panel__section">
           <div class="panel__head">
-            <p class="overline">05 · Caption</p>
+            <p class="overline" data-i18n="section.caption">05 · 标题</p>
           </div>
 
           <div class="field">
             <label class="switch">
               <input id="caption-enabled" type="checkbox" checked />
               <span class="switch__dot" aria-hidden="true"></span>
-              <span class="switch__label">Show caption on color block</span>
+              <span class="switch__label" data-i18n="caption.toggle">
+                在色块上显示文字
+              </span>
             </label>
           </div>
 
           <div class="field">
-            <label class="field__label" for="caption-text">Text</label>
+            <label class="field__label" for="caption-text" data-i18n="caption.label">
+              文字
+            </label>
             <input
               id="caption-text"
               type="text"
               class="text-input"
-              placeholder="e.g. mustard, 1:22 pm"
+              data-i18n-placeholder="caption.placeholder"
+              placeholder="如：mustard, 1:22 pm"
             />
-            <p class="field__hint mono" id="caption-auto-hint">auto: —</p>
+            <p class="field__hint mono" id="caption-auto-hint">自动：—</p>
           </div>
 
           <div class="field">
-            <label class="field__label">Font</label>
+            <label class="field__label" data-i18n="label.font">字体</label>
             <div class="segmented segmented--sm" id="font-group" role="radiogroup" aria-label="Caption font">
               <button type="button" class="segmented__btn is-active" data-font="serif-italic" role="radio">
                 <em>serif</em>
@@ -222,13 +263,60 @@
 
       <!-- ---------------------- Right: canvas stage ------------------- -->
       <section class="stage" id="stage" aria-label="Preview">
-        <div class="stage__inner" id="stage-inner">
-          <canvas id="canvas" aria-label="Composition preview"></canvas>
-          <div class="stage__dropzone" id="stage-dropzone" aria-hidden="true">
-            <span class="serif-italic">Drop your photo here</span>
+        <!-- Big empty state — shown only when no image loaded -->
+        <div class="stage__empty" id="stage-empty">
+          <div class="stage__empty-inner">
+            <svg class="stage__empty-icon" viewBox="0 0 64 64" aria-hidden="true">
+              <rect x="10" y="14" width="44" height="36" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4"/>
+              <circle cx="22" cy="26" r="4" fill="currentColor" opacity="0.4"/>
+              <path d="M14 46 L26 34 L36 42 L44 34 L50 40 L50 48 L14 48 Z" fill="currentColor" opacity="0.4"/>
+            </svg>
+            <p class="stage__empty-title serif-italic" data-i18n="stage.empty.title">
+              拖一张照片进来，开始你的色彩日记
+            </p>
+            <p class="stage__empty-hint" data-i18n="stage.empty.hint">
+              所有处理都在你的浏览器里完成，图片不会上传。
+            </p>
           </div>
         </div>
-        <p class="stage__meta mono" id="stage-meta">— · — · —</p>
+
+        <!-- Canvas — shown only when image is loaded -->
+        <div class="stage__inner" id="stage-inner" hidden>
+          <canvas id="canvas" aria-label="Composition preview"></canvas>
+        </div>
+
+        <!-- Zoom HUD — floating bottom-right inside the stage -->
+        <div class="zoom-hud" id="zoom-hud" hidden>
+          <button
+            type="button"
+            class="zoom-hud__btn"
+            id="zoom-out-btn"
+            data-i18n-aria="stage.zoom.out.aria"
+            data-i18n-title="stage.zoom.out.title"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            class="zoom-hud__val mono"
+            id="zoom-val-btn"
+            data-i18n-aria="stage.zoom.reset.aria"
+            data-i18n-title="stage.zoom.reset.title"
+          >
+            100%
+          </button>
+          <button
+            type="button"
+            class="zoom-hud__btn"
+            id="zoom-in-btn"
+            data-i18n-aria="stage.zoom.in.aria"
+            data-i18n-title="stage.zoom.in.title"
+          >
+            +
+          </button>
+        </div>
+
+        <p class="stage__meta mono" id="stage-meta" hidden>—</p>
       </section>
     </main>
 

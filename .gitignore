@@ -16,9 +16,10 @@ Thumbs.db
 *.log
 .cache/
 
-# Agent & product docs — internal only, not part of the product
+# Agent & internal doc drafts — 仓库内保留产品 PRD
 .agents/
-docs/
+docs/*
+!docs/PRD.md
 
 # Terminals / scratch
 terminals/

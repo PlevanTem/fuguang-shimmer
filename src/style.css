@@ -89,6 +89,11 @@ select {
   color: inherit;
 }
 
+/* Ensure the [hidden] attribute always wins over our explicit display rules */
+[hidden] {
+  display: none !important;
+}
+
 button {
   background: transparent;
   border: 0;
@@ -290,9 +295,20 @@ em {
 }
 
 @media (max-width: 900px) {
+  /* On mobile the stage goes on TOP so the preview stays visible while the
+     user scrolls through controls below. Both rows take half-ish height. */
   .editor {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: minmax(45vh, 1fr) auto;
+  }
+  .stage {
+    order: -1;
+    min-height: 45vh;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .panel {
+    border-right: 0;
+    max-height: 55vh;
   }
 }
 
@@ -644,6 +660,21 @@ input[type='range']::-moz-range-thumb {
   fill: currentColor;
 }
 
+.text-adder {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+
+.text-adder .text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.text-adder .btn {
+  flex-shrink: 0;
+}
+
 .actions-row {
   display: flex;
   gap: var(--s-2);
@@ -652,6 +683,16 @@ input[type='range']::-moz-range-thumb {
 
 .actions-row .btn {
   flex: 1;
+}
+
+.selection-hint {
+  margin: var(--s-3) 0 0;
+  padding: var(--s-2) var(--s-3);
+  background: var(--paper-ivory);
+  border-left: 2px solid var(--ink);
+  color: var(--ink);
+  font-size: 10px;
+  letter-spacing: 0.04em;
 }
 
 /* ----- Color input ------------------------------------------------------- */
@@ -752,65 +793,211 @@ input[type='range']::-moz-range-thumb {
 .stage {
   position: relative;
   background:
-    radial-gradient(circle at 50% 40%, var(--paper) 0%, var(--paper-ivory) 100%);
+    radial-gradient(circle at 50% 30%, var(--paper) 0%, var(--paper-ivory) 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--s-5);
+  padding: var(--s-2);
   overflow: hidden;
   min-height: 0;
+  transition: background-color var(--d-normal) var(--ease-paper);
+}
+
+.stage.is-dragover {
+  background:
+    radial-gradient(circle at 50% 30%, var(--paper-ivory) 0%, var(--paper) 100%);
+}
+
+.stage.is-dragover::before {
+  content: '';
+  position: absolute;
+  inset: var(--s-3);
+  border: 2px dashed var(--ink);
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 .stage__inner {
+  /* Use CSS Grid for centering: `place-items: center` centers the canvas both
+     axes when it fits, and when the zoomed canvas exceeds the inner size,
+     overflow:auto provides scrollbars so the user can pan to any edge. */
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  max-height: 100%;
-  width: min(100%, 760px);
-  flex: 1;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  width: 100%;
+  flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
 }
 
 #canvas {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
+  touch-action: none; /* pointerdown/move for shape drag; wheel used for zoom */
+  /* A hairline shadow so the composition's boundary reads clearly against
+     the ivory stage, without adding the heavy box-shadow of a card. */
   box-shadow:
-    0 1px 2px rgba(17, 17, 17, 0.06),
-    0 12px 32px rgba(17, 17, 17, 0.08);
-  background: var(--paper-card);
-  border-radius: 2px;
+    0 0 0 1px rgba(17, 17, 17, 0.08),
+    0 1px 2px rgba(17, 17, 17, 0.04),
+    0 6px 20px rgba(17, 17, 17, 0.06);
 }
 
-.stage__dropzone {
+#canvas.is-hovering-shape {
+  cursor: grab;
+}
+
+#canvas.is-dragging-shape {
+  cursor: grabbing;
+}
+
+/* ----- Zoom HUD (overlays the stage) ------------------------------------ */
+.zoom-hud {
   position: absolute;
-  inset: 0;
+  z-index: 2;
+  right: var(--s-4);
+  bottom: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--paper-card) 92%, transparent);
+  box-shadow: 0 2px 12px rgba(17, 17, 17, 0.08);
+  backdrop-filter: blur(6px);
+}
+
+.zoom-hud__btn {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  color: var(--ink-soft);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--d-normal) var(--ease-paper);
-  background: rgba(250, 250, 247, 0.92);
-  border-radius: 2px;
-  border: 2px dashed var(--ink);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--d-micro) var(--ease-paper),
+    color var(--d-micro) var(--ease-paper);
 }
 
-.stage.is-dragover .stage__dropzone {
-  opacity: 1;
+.zoom-hud__btn:hover {
+  background: var(--paper-ivory);
+  color: var(--ink);
+}
+
+.zoom-hud__val {
+  min-width: 52px;
+  height: 32px;
+  margin: 0 2px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper-ivory);
+  color: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: center;
+}
+
+.zoom-hud__val:hover {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+/* ----- Stage empty state ------------------------------------------------ */
+.stage__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  padding: var(--s-6);
+  text-align: center;
+}
+
+.stage__empty-inner {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.stage__empty-icon {
+  width: 72px;
+  height: 72px;
+  color: var(--hairline-strong);
+  margin-bottom: var(--s-2);
+  transition: color var(--d-normal) var(--ease-paper);
+}
+
+.stage.is-dragover .stage__empty-icon {
+  color: var(--ink);
+}
+
+.stage__empty-title {
+  margin: 0;
+  font-size: 22px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.stage__empty-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .stage__meta {
-  margin-top: var(--s-4);
+  margin-top: var(--s-3);
   color: var(--ink-muted);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* ----- Language toggle -------------------------------------------------- */
+.lang-toggle {
+  display: inline-flex;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 2px;
+  background: var(--paper-ivory);
+  margin-right: var(--s-2);
+}
+
+.lang-toggle__btn {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  transition:
+    background-color var(--d-micro) var(--ease-paper),
+    color var(--d-micro) var(--ease-paper);
+}
+
+.lang-toggle__btn:hover {
+  color: var(--ink);
+}
+
+.lang-toggle__btn.is-active {
+  background: var(--paper-card);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.04);
 }
 
 /* ----- Focus rings ------------------------------------------------------- */
@@ -840,6 +1027,82 @@ input:focus-visible,
 
 .panel::-webkit-scrollbar-thumb:hover {
   background: var(--ink-muted);
+}
+
+/* ----- Mobile refinements ------------------------------------------------
+   The layout rule above swaps stage/panel order on ≤900px. Everything below
+   is finer tuning for phone-size screens: tighter top bar, smaller section
+   gaps, stage never shrinks below a readable height, canvas keeps its
+   aspect-preserving max fit. */
+@media (max-width: 900px) {
+  :root {
+    --top-h: 48px;
+  }
+
+  .top-bar {
+    padding: 0 var(--s-3);
+  }
+
+  .wordmark {
+    font-size: 1.125rem;
+  }
+
+  .file-name {
+    max-width: 120px;
+    font-size: 11px;
+  }
+
+  .top-bar__actions {
+    gap: var(--s-2);
+  }
+
+  .btn--sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .panel__section {
+    padding: var(--s-4);
+  }
+
+  .stage__empty-title {
+    font-size: 18px;
+  }
+
+  .stage__empty-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .stage__meta {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-bar {
+    padding: 0 var(--s-3);
+  }
+
+  /* On very small phones the Reset button + export label compete for room —
+     hide the Reset label text and rely on the Export button as the primary CTA. */
+  #reset-btn {
+    display: none;
+  }
+
+  .lang-toggle__btn {
+    min-width: 24px;
+    padding: 0 6px;
+  }
+
+  .divider-v {
+    display: none;
+  }
+
+  .file-name {
+    display: none;
+  }
 }
 
 /* ----- Reduced motion ---------------------------------------------------- */
