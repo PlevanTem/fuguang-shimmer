@@ -117,6 +117,38 @@
             <span class="panel__hint mono" id="palette-hint">先上传一张图</span>
           </div>
           <div class="palette-chips" id="palette-chips"></div>
+          <div class="palette-tools" id="palette-tools">
+            <div class="field field--palette-tools">
+              <div class="field__row field__row--align-center">
+                <label class="field__label" for="block-color" data-i18n="label.block-color">
+                  色块主色
+                </label>
+                <div class="palette-tools__controls">
+                  <input
+                    id="block-color"
+                    type="color"
+                    class="color-input color-input--palette"
+                    value="#e6b422"
+                    data-i18n-title="palette.pickerTitle"
+                    data-i18n-aria="palette.picker.aria"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--sm palette-tools__eyedropper"
+                    id="palette-eyedropper"
+                    data-i18n-aria="palette.eyedropper.aria"
+                    data-i18n-title="palette.eyedropper.title"
+                  >
+                    <svg class="palette-tools__dropper-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M7 3L4 6c-.8.8-.8 2 0 2.8L10.2 15c.8.8 2.1.8 2.8 0l.7-.7c.4-.4.4-1 0-1.4L7.2 4.1c-.4-.4-1.1-.4-1.5 0L7 3z"/>
+                      <path d="M2 18h8"/>
+                    </svg>
+                    <span data-i18n="palette.eyedropper.label">吸色</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- Shapes -->

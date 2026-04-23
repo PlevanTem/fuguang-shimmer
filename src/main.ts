@@ -41,6 +41,8 @@ const layoutGrid = $<HTMLDivElement>('layout-grid');
 
 const paletteChips = $<HTMLDivElement>('palette-chips');
 const paletteHint = $<HTMLSpanElement>('palette-hint');
+const blockColorInput = $<HTMLInputElement>('block-color');
+const paletteEyedropperBtn = $<HTMLButtonElement>('palette-eyedropper');
 
 const modeGroup = $<HTMLDivElement>('mode-group');
 const shapeColorInput = $<HTMLInputElement>('shape-color');
@@ -379,6 +381,43 @@ function wireModeGroup(): void {
     );
     if (!btn) return;
     store.set({ activeFillMode: btn.dataset.mode as FillMode });
+  });
+}
+
+/** 将 #rgb / #rrggbb 规范为 6 位小写，与 `blockColor` 和 `input[type=color]` 对齐。 */
+function normalizeBlockColorHex(hex: string): string {
+  const t = hex.trim();
+  if (/^#([0-9a-fA-F]{3})$/i.test(t)) {
+    const a = t.slice(1);
+    return (
+      `#${a[0]!}${a[0]!}${a[1]!}${a[1]!}${a[2]!}${a[2]!}`
+    ).toLowerCase();
+  }
+  if (/^#([0-9a-fA-F]{6})$/i.test(t)) return t.toLowerCase();
+  return '#e6b422';
+}
+
+function wirePaletteColorTools(): void {
+  blockColorInput.addEventListener('input', () => {
+    store.set({ blockColor: normalizeBlockColorHex(blockColorInput.value) });
+  });
+  paletteEyedropperBtn.addEventListener('click', async () => {
+    const Win = window as unknown as {
+      EyeDropper?: new () => { open(): Promise<{ sRGBHex: string }> };
+    };
+    const Ed = Win.EyeDropper;
+    if (typeof Ed !== 'function') {
+      window.alert(t('palette.eyedropper.unsupported'));
+      return;
+    }
+    try {
+      const result = await new Ed().open();
+      if (result?.sRGBHex) {
+        store.set({ blockColor: normalizeBlockColorHex(result.sRGBHex) });
+      }
+    } catch {
+      // 用户取消取色
+    }
   });
 }
 
@@ -937,6 +976,11 @@ function syncUi(state: Composition): void {
     ? tFormat('palette.hint.extracted', state.palette.length)
     : t('palette.hint.empty');
 
+  const blockNorm = normalizeBlockColorHex(state.blockColor);
+  if (blockColorInput.value.toLowerCase() !== blockNorm) {
+    blockColorInput.value = blockNorm;
+  }
+
   // Caption
   if (captionEnabled.checked !== state.caption.enabled)
     captionEnabled.checked = state.caption.enabled;
@@ -1052,6 +1096,7 @@ function init(): void {
   wireFileInput();
   wireLayoutGrid();
   wireModeGroup();
+  wirePaletteColorTools();
   wireShapeColor();
   wireShapeSize();
   wireTextAdder();

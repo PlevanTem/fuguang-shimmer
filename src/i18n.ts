@@ -59,6 +59,22 @@ const DICT: Record<string, Record<Lang, string>> = {
     zh: '提取到 {0} 种主色',
     en: '{0} swatches extracted',
   },
+  'label.block-color': { zh: '色块主色', en: 'Block color' },
+  'palette.pickerTitle': {
+    zh: '系统色盘（可微调色块主色，可与上方提取色不同）',
+    en: 'Open color wheel to adjust the block; can differ from extracted swatches',
+  },
+  'palette.picker.aria': { zh: '色盘，调整色块主色', en: 'Color picker, block main color' },
+  'palette.eyedropper.aria': { zh: '从屏幕任意处取色', en: 'Pick a color from the screen' },
+  'palette.eyedropper.title': {
+    zh: '用吸管从屏幕取色，用于色块主色',
+    en: 'Eyedropper: sample any pixel on the screen for the block color',
+  },
+  'palette.eyedropper.label': { zh: '吸色', en: 'Dropper' },
+  'palette.eyedropper.unsupported': {
+    zh: '当前浏览器不支持屏幕取色（需 Chrome/Edge 或较新 Safari）。请用上方色盘选择颜色。',
+    en: 'This browser has no eyedropper (try Chrome, Edge, or a recent browser). Use the color wheel above.',
+  },
 
   // Shapes
   'shapes.sub': { zh: '创意拼贴', en: 'creative collage' },

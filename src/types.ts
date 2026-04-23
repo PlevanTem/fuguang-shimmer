@@ -52,7 +52,7 @@ export interface Composition {
   /** 5 hex strings extracted via median-cut. */
   palette: string[];
   layout: Layout;
-  /** Hex color of the color block. Usually a choice from `palette`. */
+  /** Hex for the color block: picked from swatches, custom color input, or screen eyedropper. */
   blockColor: string;
   caption: Caption;
   /** Fill mode applied to newly-added shapes. */

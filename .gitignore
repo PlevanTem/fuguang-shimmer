@@ -16,7 +16,7 @@ Thumbs.db
 *.log
 .cache/
 
-# Agent & internal doc drafts — 仓库内保留产品 PRD
+# Agent & internal doc drafts
 .agents/
 docs/*
 !docs/PRD.md

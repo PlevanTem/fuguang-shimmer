@@ -627,6 +627,52 @@ input[type='range']::-moz-range-thumb {
   transform: none;
 }
 
+/* ----- Palette: color wheel + eyedropper (block color) ------------------ */
+.palette-tools {
+  margin-top: var(--s-4);
+}
+
+.field--palette-tools {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.field__row--align-center {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.palette-tools__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.color-input--palette {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  flex-shrink: 0;
+}
+
+.color-input--palette::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+.palette-tools__eyedropper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.palette-tools__dropper-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
 /* ----- Shape picker ------------------------------------------------------ */
 .shape-grid {
   display: grid;
