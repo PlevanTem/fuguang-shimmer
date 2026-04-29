@@ -108,6 +108,47 @@
           <p class="field__hint mono" data-i18n="hint.layout-auto">
             上传后根据照片比例自动选，色块与照片同尺寸
           </p>
+
+          <!-- Canvas ratio picker -->
+          <div class="field">
+            <label class="field__label" data-i18n="label.canvas-ratio">画布比例</label>
+            <div class="ratio-grid" id="ratio-grid" role="radiogroup">
+              <button type="button" class="ratio-chip is-active" data-ratio="auto" role="radio">
+                <span class="ratio-chip__glyph ratio-glyph--auto" aria-hidden="true"></span>
+                <span data-i18n="ratio.auto">自适应</span>
+              </button>
+              <button type="button" class="ratio-chip" data-ratio="1:1" role="radio">
+                <span class="ratio-chip__glyph ratio-glyph--1x1" aria-hidden="true"></span>
+                <span>1:1</span>
+              </button>
+              <button type="button" class="ratio-chip" data-ratio="4:3" role="radio">
+                <span class="ratio-chip__glyph ratio-glyph--4x3" aria-hidden="true"></span>
+                <span>4:3</span>
+              </button>
+              <button type="button" class="ratio-chip" data-ratio="3:4" role="radio">
+                <span class="ratio-chip__glyph ratio-glyph--3x4" aria-hidden="true"></span>
+                <span>3:4</span>
+              </button>
+              <button type="button" class="ratio-chip" data-ratio="9:16" role="radio">
+                <span class="ratio-chip__glyph ratio-glyph--9x16" aria-hidden="true"></span>
+                <span>9:16</span>
+              </button>
+              <button type="button" class="ratio-chip" data-ratio="16:9" role="radio">
+                <span class="ratio-chip__glyph ratio-glyph--16x9" aria-hidden="true"></span>
+                <span>16:9</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Photo/block split slider (hidden in auto mode) -->
+          <div class="field" id="split-ratio-field" hidden>
+            <div class="field__row">
+              <label class="field__label" for="split-ratio" data-i18n="label.split-ratio">照片占比</label>
+              <output class="field__value mono" id="split-ratio-value">50%</output>
+            </div>
+            <input id="split-ratio" type="range" min="30" max="70" step="1" value="50" />
+            <p class="field__hint mono" data-i18n="hint.canvas-fixed">参考图自动裁剪居中，凸显主体</p>
+          </div>
         </section>
 
         <!-- Palette -->

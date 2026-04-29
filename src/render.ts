@@ -1,4 +1,4 @@
-import type { BlockFill, Composition, FontKey, Layout, Rect, Shape, TextureKind } from './types';
+import type { BlockFill, CanvasRatio, Composition, FontKey, Layout, Rect, Shape, TextureKind } from './types';
 import { blockFillPrimaryColor } from './types';
 import { contrastInk, buildAutoCaption } from './palette';
 import { getShapePath } from './shapes';
@@ -65,11 +65,63 @@ export function composeLayout(
   };
 }
 
+function parseCanvasRatio(ratio: CanvasRatio): number {
+  switch (ratio) {
+    case '1:1':  return 1;
+    case '4:3':  return 4 / 3;
+    case '3:4':  return 3 / 4;
+    case '9:16': return 9 / 16;
+    case '16:9': return 16 / 9;
+    default:     return 0; // 'auto' — not used in fixed path
+  }
+}
+
+/**
+ * Fixed-ratio layout: canvas dimensions come from the target ratio, not the
+ * photo. The photo region gets a cover-crop at render time.
+ * Uses a nominal 1000-px long edge so scaling stays well-behaved.
+ */
+function composeLayoutFixed(
+  layout: Layout,
+  targetRatio: number,
+  splitRatio: number
+): ComposedLayout {
+  const isVertical = layout === 'image-top' || layout === 'image-bottom';
+  if (isVertical) {
+    const canvasW = 1000;
+    const canvasH = Math.round(1000 / targetRatio);
+    const photoH  = Math.round(canvasH * splitRatio);
+    const blockH  = canvasH - photoH;
+    return layout === 'image-top'
+      ? { canvasW, canvasH,
+          imageRect: { x: 0, y: 0,      w: canvasW, h: photoH },
+          colorRect: { x: 0, y: photoH, w: canvasW, h: blockH } }
+      : { canvasW, canvasH,
+          colorRect: { x: 0, y: 0,      w: canvasW, h: blockH },
+          imageRect: { x: 0, y: blockH, w: canvasW, h: photoH } };
+  } else {
+    const canvasH = 1000;
+    const canvasW = Math.round(1000 * targetRatio);
+    const photoW  = Math.round(canvasW * splitRatio);
+    const blockW  = canvasW - photoW;
+    return layout === 'image-left'
+      ? { canvasW, canvasH,
+          imageRect: { x: 0,      y: 0, w: photoW, h: canvasH },
+          colorRect: { x: photoW, y: 0, w: blockW,  h: canvasH } }
+      : { canvasW, canvasH,
+          colorRect: { x: 0,      y: 0, w: blockW,  h: canvasH },
+          imageRect: { x: blockW, y: 0, w: photoW,  h: canvasH } };
+  }
+}
+
 /** Compose based on the current state — uses placeholders when no image. */
 export function composeFromState(state: Composition): ComposedLayout {
   const w = state.image?.naturalWidth ?? PLACEHOLDER_IMAGE_W;
   const h = state.image?.naturalHeight ?? PLACEHOLDER_IMAGE_H;
-  return composeLayout(w, h, state.layout);
+  if (state.canvasRatio === 'auto') {
+    return composeLayout(w, h, state.layout);
+  }
+  return composeLayoutFixed(state.layout, parseCanvasRatio(state.canvasRatio), state.splitRatio);
 }
 
 /**
@@ -486,6 +538,31 @@ function getLayoutViewTransform(
   return { scale, originX, originY };
 }
 
+/**
+ * Draw an image cover-cropped into rect (centered, no distortion).
+ * In 'auto' mode the rect matches the photo's natural aspect exactly, so the
+ * cover scale = 1 and no pixel is cropped — it degrades gracefully.
+ */
+function drawImageCover(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  rect: Rect
+): void {
+  const scale = Math.max(rect.w / img.naturalWidth, rect.h / img.naturalHeight);
+  const dw = img.naturalWidth  * scale;
+  const dh = img.naturalHeight * scale;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip();
+  ctx.drawImage(img,
+    rect.x + (rect.w - dw) / 2,
+    rect.y + (rect.h - dh) / 2,
+    dw, dh
+  );
+  ctx.restore();
+}
+
 export interface RenderOptions {
   /** Output canvas pixel width — must match composed layout scaled. */
   width: number;
@@ -532,7 +609,7 @@ export function render(
 
   // --- Image half ---------------------------------------------------------
   if (state.image) {
-    ctx.drawImage(state.image, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
+    drawImageCover(ctx, state.image, imageRect);
   } else {
     ctx.fillStyle = PLACEHOLDER_IVORY;
     ctx.fillRect(imageRect.x, imageRect.y, imageRect.w, imageRect.h);

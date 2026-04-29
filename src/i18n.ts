@@ -76,6 +76,15 @@ const DICT: Record<string, Record<Lang, string>> = {
     en: 'This browser has no eyedropper (try Chrome, Edge, or a recent browser). Use the color wheel above.',
   },
 
+  // Canvas ratio + split
+  'label.canvas-ratio': { zh: '画布比例', en: 'Canvas ratio' },
+  'ratio.auto':  { zh: '自适应', en: 'Auto' },
+  'label.split-ratio': { zh: '照片占比', en: 'Photo size' },
+  'hint.canvas-fixed': {
+    zh: '参考图自动裁剪居中，凸显主体',
+    en: 'Photo center-cropped to highlight subject',
+  },
+
   // Palette fill type
   'fill.solid':    { zh: '纯色', en: 'Solid' },
   'fill.gradient': { zh: '渐变', en: 'Gradient' },

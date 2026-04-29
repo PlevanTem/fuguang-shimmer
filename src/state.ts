@@ -9,6 +9,8 @@ export function createInitialState(): Composition {
     palette: ['#E6B422', '#B49BD0', '#9FB28A', '#D8A7A1', '#4A6BAF'],
     layout: 'image-bottom',
     blockFill: { type: 'solid' as const, color: '#E6B422' },
+    canvasRatio: 'auto' as const,
+    splitRatio: 0.5,
     caption: {
       enabled: true,
       text: '',

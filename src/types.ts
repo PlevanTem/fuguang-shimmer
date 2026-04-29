@@ -4,6 +4,9 @@ export type Layout =
   | 'image-left'
   | 'image-right';
 
+/** Target canvas aspect ratio. 'auto' = natural photo + block (legacy behaviour). */
+export type CanvasRatio = 'auto' | '1:1' | '4:3' | '3:4' | '9:16' | '16:9';
+
 export type FillMode = 'solid' | 'cutout';
 
 export type ShapeKind =
@@ -98,6 +101,14 @@ export interface Composition {
   layout: Layout;
   /** The fill style of the color block. */
   blockFill: BlockFill;
+  /** Target canvas aspect ratio. 'auto' uses natural photo dimensions. */
+  canvasRatio: CanvasRatio;
+  /**
+   * Fraction of the canvas (along the split axis) occupied by the photo.
+   * 0.5 = equal split (default). Range 0.3–0.7.
+   * Only meaningful when canvasRatio !== 'auto'.
+   */
+  splitRatio: number;
   caption: Caption;
   /** Fill mode applied to newly-added shapes. */
   activeFillMode: FillMode;

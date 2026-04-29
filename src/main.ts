@@ -1,7 +1,7 @@
 import './style.css';
 
 import { store } from './state';
-import type { BlockFill, Composition, FillMode, Layout, Shape, ShapeKind, TextureKind } from './types';
+import type { BlockFill, CanvasRatio, Composition, FillMode, Layout, Shape, ShapeKind, TextureKind } from './types';
 import { blockFillPrimaryColor } from './types';
 import { extractPalette, buildAutoCaption, contrastInk } from './palette';
 import { SHAPE_KINDS, randomShapeId } from './shapes';
@@ -39,6 +39,10 @@ const resetBtn = $<HTMLButtonElement>('reset-btn');
 const exportBtn = $<HTMLButtonElement>('export-btn');
 
 const layoutGrid = $<HTMLDivElement>('layout-grid');
+const ratioGrid = $<HTMLDivElement>('ratio-grid');
+const splitRatioInput = $<HTMLInputElement>('split-ratio');
+const splitRatioValueEl = $<HTMLOutputElement>('split-ratio-value');
+const splitRatioField = $<HTMLDivElement>('split-ratio-field');
 
 const paletteChips = $<HTMLDivElement>('palette-chips');
 const paletteHint = $<HTMLSpanElement>('palette-hint');
@@ -293,11 +297,10 @@ async function loadFile(file: File): Promise<void> {
   }
   const palette = extractPalette(img, 5);
   const firstColor = palette[0] ?? store.get().palette[0] ?? '#E6B422';
-  const nextLayout = chooseReadableLayout(
-    img.naturalWidth,
-    img.naturalHeight,
-    store.get().layout
-  );
+  const currentState = store.get();
+  const nextLayout = currentState.canvasRatio !== 'auto'
+    ? currentState.layout
+    : chooseReadableLayout(img.naturalWidth, img.naturalHeight, currentState.layout);
   viewZoom = 1;
   store.set({
     image: img,
@@ -382,6 +385,20 @@ function wireLayoutGrid(): void {
     if (!btn) return;
     const layout = btn.dataset.layout as Layout;
     store.set({ layout });
+  });
+}
+
+function wireRatioGrid(): void {
+  ratioGrid.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-ratio]');
+    if (!btn) return;
+    store.set({ canvasRatio: btn.dataset.ratio as CanvasRatio });
+  });
+}
+
+function wireSplitRatio(): void {
+  splitRatioInput.addEventListener('input', () => {
+    store.set({ splitRatio: parseInt(splitRatioInput.value, 10) / 100 });
   });
 }
 
@@ -1020,6 +1037,19 @@ function syncUi(state: Composition): void {
     );
   }
 
+  // Canvas ratio chips
+  for (const btn of ratioGrid.querySelectorAll<HTMLButtonElement>('[data-ratio]')) {
+    const active = btn.dataset.ratio === state.canvasRatio;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-checked', active ? 'true' : 'false');
+  }
+  splitRatioField.hidden = state.canvasRatio === 'auto';
+  if (state.canvasRatio !== 'auto') {
+    const pct = Math.round(state.splitRatio * 100);
+    if (splitRatioInput.value !== String(pct)) splitRatioInput.value = String(pct);
+    splitRatioValueEl.value = `${pct}%`;
+  }
+
   // Fill mode
   for (const btn of modeGroup.querySelectorAll<HTMLButtonElement>(
     '[data-mode]'
@@ -1228,6 +1258,8 @@ function init(): void {
   buildShapeGrid();
   wireFileInput();
   wireLayoutGrid();
+  wireRatioGrid();
+  wireSplitRatio();
   wireModeGroup();
   wireFillTypeTabs();
   wireSolidColorPicker();

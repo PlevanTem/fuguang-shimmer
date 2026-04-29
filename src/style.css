@@ -1328,6 +1328,79 @@ input:focus-visible,
     );
 }
 
+/* ----- Canvas ratio picker ----------------------------------------------- */
+.ratio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.ratio-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  font-size: 10px;
+  color: var(--ink-soft);
+  background: var(--paper-card);
+  transition: border-color var(--d-micro) var(--ease-paper);
+}
+
+.ratio-chip:hover {
+  border-color: var(--hairline-strong);
+}
+
+.ratio-chip.is-active {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.ratio-chip__glyph {
+  display: block;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.65;
+}
+
+.ratio-chip.is-active .ratio-chip__glyph {
+  opacity: 1;
+}
+
+.ratio-glyph--auto {
+  width: 20px;
+  height: 20px;
+  border-style: dashed;
+}
+
+.ratio-glyph--1x1 {
+  width: 20px;
+  height: 20px;
+}
+
+.ratio-glyph--4x3 {
+  width: 24px;
+  height: 18px;
+}
+
+.ratio-glyph--3x4 {
+  width: 18px;
+  height: 24px;
+}
+
+.ratio-glyph--9x16 {
+  width: 13px;
+  height: 23px;
+}
+
+.ratio-glyph--16x9 {
+  width: 23px;
+  height: 13px;
+}
+
 /* ----- Reduced motion ---------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,
