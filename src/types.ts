@@ -19,6 +19,50 @@ export type ShapeKind =
 
 export type FontKey = 'serif-italic' | 'serif' | 'sans' | 'mono';
 
+// ── Color block fill types ──────────────────────────────────────────────────
+
+export type TextureKind = 'paper' | 'linen' | 'grain' | 'canvas';
+
+export interface SolidFill {
+  type: 'solid';
+  color: string;
+}
+
+export interface LinearGradientFill {
+  type: 'linear';
+  colorA: string;
+  colorB: string;
+  /** Degrees: 0 = top→bottom, 90 = left→right, 45 = top-left→bottom-right. */
+  angle: number;
+}
+
+export interface RadialGradientFill {
+  type: 'radial';
+  colorA: string; // center
+  colorB: string; // edge
+}
+
+export interface TextureFill {
+  type: 'texture';
+  kind: TextureKind;
+  color: string; // base tint color
+}
+
+export type BlockFill =
+  | SolidFill
+  | LinearGradientFill
+  | RadialGradientFill
+  | TextureFill;
+
+/** Returns the dominant single color of a fill — used for caption contrast and palette chip matching. */
+export function blockFillPrimaryColor(fill: BlockFill): string {
+  return fill.type === 'solid' || fill.type === 'texture'
+    ? fill.color
+    : fill.colorA;
+}
+
+// ── Shape ────────────────────────────────────────────────────────────────────
+
 export interface Shape {
   id: string;
   kind: ShapeKind;
@@ -52,8 +96,8 @@ export interface Composition {
   /** 5 hex strings extracted via median-cut. */
   palette: string[];
   layout: Layout;
-  /** Hex for the color block: picked from swatches, custom color input, or screen eyedropper. */
-  blockColor: string;
+  /** The fill style of the color block. */
+  blockFill: BlockFill;
   caption: Caption;
   /** Fill mode applied to newly-added shapes. */
   activeFillMode: FillMode;

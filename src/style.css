@@ -1151,6 +1151,183 @@ input:focus-visible,
   }
 }
 
+/* ----- Fill type tabs (reuses .segmented + .segmented__btn) --------------- */
+.fill-type-tabs {
+  margin-top: var(--s-3);
+}
+
+/* ----- Fill panels -------------------------------------------------------- */
+.fill-panel {
+  margin-top: var(--s-2);
+}
+
+.fill-panel > .field:first-child {
+  margin-top: 0;
+}
+
+/* ----- Gradient: two color stops side-by-side ----------------------------- */
+.gradient-stops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+.gradient-stop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.gradient-stop .color-input--palette {
+  width: 100%;
+  height: 34px;
+}
+
+/* ----- Gradient direction picker ----------------------------------------- */
+.gradient-dir-group {
+  display: flex;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+
+.gradient-dir-btn {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--paper-card);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-soft);
+  transition:
+    border-color var(--d-micro) var(--ease-paper),
+    color var(--d-micro) var(--ease-paper),
+    background-color var(--d-micro) var(--ease-paper);
+}
+
+.gradient-dir-btn:hover {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+
+.gradient-dir-btn.is-active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--paper-ivory);
+}
+
+/* ----- Texture swatches -------------------------------------------------- */
+.texture-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.texture-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--paper-card);
+  font-size: 10px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color var(--d-micro) var(--ease-paper);
+}
+
+.texture-swatch:hover {
+  border-color: var(--hairline-strong);
+}
+
+.texture-swatch.is-active {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.texture-swatch__preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.texture-preview--paper {
+  background-color: #d4c5a9;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.05) 0px,
+    rgba(0, 0, 0, 0.05) 1px,
+    rgba(255, 255, 255, 0.06) 1px,
+    rgba(255, 255, 255, 0.06) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+}
+
+.texture-preview--linen {
+  background-color: #c8b89a;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.16) 0px,
+      rgba(255, 255, 255, 0.16) 1px,
+      rgba(0, 0, 0, 0.09) 1px,
+      rgba(0, 0, 0, 0.09) 2px,
+      transparent 2px,
+      transparent 5px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.10) 0px,
+      rgba(255, 255, 255, 0.10) 1px,
+      rgba(0, 0, 0, 0.06) 1px,
+      rgba(0, 0, 0, 0.06) 2px,
+      transparent 2px,
+      transparent 5px
+    );
+}
+
+.texture-preview--grain {
+  background-color: #b8a488;
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.28) 1px,
+    transparent 1px
+  );
+  background-size: 3px 3px;
+}
+
+.texture-preview--canvas {
+  background-color: #bba989;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.20) 0px,
+      rgba(255, 255, 255, 0.20) 2px,
+      rgba(0, 0, 0, 0.13) 2px,
+      rgba(0, 0, 0, 0.13) 4px,
+      transparent 4px,
+      transparent 10px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.16) 0px,
+      rgba(255, 255, 255, 0.16) 2px,
+      rgba(0, 0, 0, 0.10) 2px,
+      rgba(0, 0, 0, 0.10) 4px,
+      transparent 4px,
+      transparent 10px
+    );
+}
+
 /* ----- Reduced motion ---------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,

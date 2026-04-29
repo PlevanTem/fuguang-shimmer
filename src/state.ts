@@ -8,7 +8,7 @@ export function createInitialState(): Composition {
     imageName: '',
     palette: ['#E6B422', '#B49BD0', '#9FB28A', '#D8A7A1', '#4A6BAF'],
     layout: 'image-bottom',
-    blockColor: '#E6B422',
+    blockFill: { type: 'solid' as const, color: '#E6B422' },
     caption: {
       enabled: true,
       text: '',

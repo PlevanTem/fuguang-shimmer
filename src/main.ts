@@ -1,7 +1,8 @@
 import './style.css';
 
 import { store } from './state';
-import type { Composition, FillMode, Layout, Shape, ShapeKind } from './types';
+import type { BlockFill, Composition, FillMode, Layout, Shape, ShapeKind, TextureKind } from './types';
+import { blockFillPrimaryColor } from './types';
 import { extractPalette, buildAutoCaption, contrastInk } from './palette';
 import { SHAPE_KINDS, randomShapeId } from './shapes';
 import {
@@ -43,6 +44,16 @@ const paletteChips = $<HTMLDivElement>('palette-chips');
 const paletteHint = $<HTMLSpanElement>('palette-hint');
 const blockColorInput = $<HTMLInputElement>('block-color');
 const paletteEyedropperBtn = $<HTMLButtonElement>('palette-eyedropper');
+
+const fillTypeTabs = $<HTMLDivElement>('fill-type-tabs');
+const fillPanelSolid = $<HTMLDivElement>('fill-panel-solid');
+const fillPanelGradient = $<HTMLDivElement>('fill-panel-gradient');
+const fillPanelTexture = $<HTMLDivElement>('fill-panel-texture');
+const gradColorAInput = $<HTMLInputElement>('gradient-color-a');
+const gradColorBInput = $<HTMLInputElement>('gradient-color-b');
+const gradDirGroup = $<HTMLDivElement>('gradient-dir-group');
+const textureGridEl = $<HTMLDivElement>('texture-grid');
+const textureColorInput = $<HTMLInputElement>('texture-color');
 
 const modeGroup = $<HTMLDivElement>('mode-group');
 const shapeColorInput = $<HTMLInputElement>('shape-color');
@@ -292,7 +303,7 @@ async function loadFile(file: File): Promise<void> {
     image: img,
     imageName: file.name,
     palette: palette.length > 0 ? palette : store.get().palette,
-    blockColor: firstColor,
+    blockFill: { type: 'solid' as const, color: firstColor },
     shapes: [],
     selectedShapeId: null,
     layout: nextLayout,
@@ -397,9 +408,48 @@ function normalizeBlockColorHex(hex: string): string {
   return '#e6b422';
 }
 
-function wirePaletteColorTools(): void {
+/** Update the "primary color" slot of the current fill (colorA for gradients, color for solid/texture). */
+function patchBlockFillPrimary(hex: string): void {
+  const fill = store.get().blockFill;
+  if (fill.type === 'solid') {
+    store.set({ blockFill: { ...fill, color: hex } });
+  } else if (fill.type === 'linear') {
+    store.set({ blockFill: { ...fill, colorA: hex } });
+  } else if (fill.type === 'radial') {
+    store.set({ blockFill: { ...fill, colorA: hex } });
+  } else {
+    store.set({ blockFill: { ...fill, color: hex } });
+  }
+}
+
+function switchFillType(tab: 'solid' | 'gradient' | 'texture'): void {
+  const s = store.get();
+  const primary = blockFillPrimaryColor(s.blockFill);
+  const fill = s.blockFill;
+  if (tab === 'solid') {
+    if (fill.type === 'solid') return;
+    store.set({ blockFill: { type: 'solid' as const, color: primary } });
+  } else if (tab === 'gradient') {
+    if (fill.type === 'linear' || fill.type === 'radial') return;
+    const colorB = '#ffffff';
+    store.set({ blockFill: { type: 'linear' as const, colorA: primary, colorB, angle: 0 } });
+  } else {
+    if (fill.type === 'texture') return;
+    store.set({ blockFill: { type: 'texture' as const, kind: 'paper', color: primary } });
+  }
+}
+
+function wireFillTypeTabs(): void {
+  fillTypeTabs.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-fill-type]');
+    if (!btn) return;
+    switchFillType(btn.dataset.fillType as 'solid' | 'gradient' | 'texture');
+  });
+}
+
+function wireSolidColorPicker(): void {
   blockColorInput.addEventListener('input', () => {
-    store.set({ blockColor: normalizeBlockColorHex(blockColorInput.value) });
+    patchBlockFillPrimary(normalizeBlockColorHex(blockColorInput.value));
   });
   paletteEyedropperBtn.addEventListener('click', async () => {
     const Win = window as unknown as {
@@ -413,11 +463,53 @@ function wirePaletteColorTools(): void {
     try {
       const result = await new Ed().open();
       if (result?.sRGBHex) {
-        store.set({ blockColor: normalizeBlockColorHex(result.sRGBHex) });
+        patchBlockFillPrimary(normalizeBlockColorHex(result.sRGBHex));
       }
     } catch {
       // 用户取消取色
     }
+  });
+}
+
+function wireGradientPanel(): void {
+  gradColorAInput.addEventListener('input', () => {
+    const fill = store.get().blockFill;
+    if (fill.type === 'linear') store.set({ blockFill: { ...fill, colorA: gradColorAInput.value } });
+    else if (fill.type === 'radial') store.set({ blockFill: { ...fill, colorA: gradColorAInput.value } });
+  });
+  gradColorBInput.addEventListener('input', () => {
+    const fill = store.get().blockFill;
+    if (fill.type === 'linear') store.set({ blockFill: { ...fill, colorB: gradColorBInput.value } });
+    else if (fill.type === 'radial') store.set({ blockFill: { ...fill, colorB: gradColorBInput.value } });
+  });
+  gradDirGroup.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-angle]');
+    if (!btn) return;
+    const fill = store.get().blockFill;
+    const colorA = (fill.type === 'linear' || fill.type === 'radial') ? fill.colorA : blockFillPrimaryColor(fill);
+    const colorB = (fill.type === 'linear' || fill.type === 'radial') ? fill.colorB : '#ffffff';
+    if (btn.dataset.angle === 'radial') {
+      store.set({ blockFill: { type: 'radial' as const, colorA, colorB } });
+    } else {
+      const angle = parseInt(btn.dataset.angle!, 10);
+      store.set({ blockFill: { type: 'linear' as const, colorA, colorB, angle } });
+    }
+  });
+}
+
+function wireTexturePanel(): void {
+  textureGridEl.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-texture]');
+    if (!btn) return;
+    const kind = btn.dataset.texture as TextureKind;
+    const fill = store.get().blockFill;
+    const color = fill.type === 'texture' ? fill.color : blockFillPrimaryColor(fill);
+    store.set({ blockFill: { type: 'texture' as const, kind, color } });
+  });
+  textureColorInput.addEventListener('input', () => {
+    const fill = store.get().blockFill;
+    if (fill.type !== 'texture') return;
+    store.set({ blockFill: { ...fill, color: textureColorInput.value } });
   });
 }
 
@@ -630,7 +722,7 @@ function wireTopBar(): void {
       : 'image-bottom';
     store.set({
       layout: naturalLayout,
-      blockColor: s.palette[0] ?? s.blockColor,
+      blockFill: { type: 'solid' as const, color: s.palette[0] ?? blockFillPrimaryColor(s.blockFill) },
       shapes: [],
       selectedShapeId: null,
       activeShapeSize: 0.12,
@@ -968,7 +1060,7 @@ function syncUi(state: Composition): void {
     )) {
       chip.classList.toggle(
         'is-active',
-        chip.dataset.hex === state.blockColor
+        chip.dataset.hex === blockFillPrimaryColor(state.blockFill)
       );
     }
   }
@@ -976,9 +1068,50 @@ function syncUi(state: Composition): void {
     ? tFormat('palette.hint.extracted', state.palette.length)
     : t('palette.hint.empty');
 
-  const blockNorm = normalizeBlockColorHex(state.blockColor);
-  if (blockColorInput.value.toLowerCase() !== blockNorm) {
-    blockColorInput.value = blockNorm;
+  // Sync fill-type tab highlights + panel visibility
+  const fillType = state.blockFill.type;
+  const activeTab = (fillType === 'linear' || fillType === 'radial') ? 'gradient' : fillType;
+  for (const btn of fillTypeTabs.querySelectorAll<HTMLButtonElement>('[data-fill-type]')) {
+    btn.classList.toggle('is-active', btn.dataset.fillType === activeTab);
+    btn.setAttribute('aria-checked', btn.dataset.fillType === activeTab ? 'true' : 'false');
+  }
+  fillPanelSolid.hidden    = fillType !== 'solid';
+  fillPanelGradient.hidden = fillType !== 'linear' && fillType !== 'radial';
+  fillPanelTexture.hidden  = fillType !== 'texture';
+
+  // Sync solid color picker
+  if (fillType === 'solid') {
+    const blockNorm = normalizeBlockColorHex(state.blockFill.color);
+    if (blockColorInput.value.toLowerCase() !== blockNorm) blockColorInput.value = blockNorm;
+  }
+
+  // Sync gradient color pickers + direction buttons
+  if (fillType === 'linear' || fillType === 'radial') {
+    const gFill = state.blockFill as typeof state.blockFill & { colorA: string; colorB: string };
+    if (gradColorAInput.value !== gFill.colorA) gradColorAInput.value = gFill.colorA;
+    if (gradColorBInput.value !== gFill.colorB) gradColorBInput.value = gFill.colorB;
+    for (const btn of gradDirGroup.querySelectorAll<HTMLButtonElement>('[data-angle]')) {
+      let active: boolean;
+      if (btn.dataset.angle === 'radial') {
+        active = fillType === 'radial';
+      } else {
+        active = fillType === 'linear' &&
+          (state.blockFill as Extract<BlockFill, { type: 'linear' }>).angle === parseInt(btn.dataset.angle!, 10);
+      }
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-checked', active ? 'true' : 'false');
+    }
+  }
+
+  // Sync texture panel
+  if (fillType === 'texture') {
+    const tFill = state.blockFill as Extract<BlockFill, { type: 'texture' }>;
+    if (textureColorInput.value !== tFill.color) textureColorInput.value = tFill.color;
+    for (const btn of textureGridEl.querySelectorAll<HTMLButtonElement>('[data-texture]')) {
+      const active = btn.dataset.texture === tFill.kind;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-checked', active ? 'true' : 'false');
+    }
   }
 
   // Caption
@@ -988,7 +1121,7 @@ function syncUi(state: Composition): void {
     captionText.value = state.caption.text;
   captionAutoHint.textContent = tFormat(
     'caption.auto',
-    buildAutoCaption(state.blockColor)
+    buildAutoCaption(blockFillPrimaryColor(state.blockFill))
   );
   for (const btn of fontGroup.querySelectorAll<HTMLButtonElement>(
     '[data-font]'
@@ -1009,7 +1142,7 @@ function syncUi(state: Composition): void {
   stageMeta.textContent = [
     `${t('stage.meta.photo')} ${imgDims}`,
     `${t('stage.meta.canvas')} ${canvasDims}`,
-    state.blockColor,
+    blockFillPrimaryColor(state.blockFill),
   ].join('  ·  ');
 
   // File name
@@ -1041,7 +1174,7 @@ function renderPaletteChips(state: Composition): void {
     chip.dataset.hex = hex;
     chip.title = `Use ${hex} as color block`;
     chip.setAttribute('aria-label', `Use ${hex} as color block`);
-    if (hex === state.blockColor) chip.classList.add('is-active');
+    if (hex === blockFillPrimaryColor(state.blockFill)) chip.classList.add('is-active');
 
     const code = document.createElement('span');
     code.className = 'palette-chip__code';
@@ -1049,7 +1182,7 @@ function renderPaletteChips(state: Composition): void {
     code.textContent = hex.toLowerCase();
     chip.appendChild(code);
 
-    chip.addEventListener('click', () => store.set({ blockColor: hex }));
+    chip.addEventListener('click', () => patchBlockFillPrimary(hex));
     paletteChips.appendChild(chip);
   }
 }
@@ -1096,7 +1229,10 @@ function init(): void {
   wireFileInput();
   wireLayoutGrid();
   wireModeGroup();
-  wirePaletteColorTools();
+  wireFillTypeTabs();
+  wireSolidColorPicker();
+  wireGradientPanel();
+  wireTexturePanel();
   wireShapeColor();
   wireShapeSize();
   wireTextAdder();

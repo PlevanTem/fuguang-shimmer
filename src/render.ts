@@ -1,4 +1,5 @@
-import type { Composition, FontKey, Layout, Rect, Shape } from './types';
+import type { BlockFill, Composition, FontKey, Layout, Rect, Shape, TextureKind } from './types';
+import { blockFillPrimaryColor } from './types';
 import { contrastInk, buildAutoCaption } from './palette';
 import { getShapePath } from './shapes';
 
@@ -121,6 +122,174 @@ export const FONT_MAP: Record<FontKey, string> = {
   sans: "500 16px 'Inter', 'PingFang SC', system-ui, sans-serif",
   mono: "500 16px 'JetBrains Mono', ui-monospace, monospace",
 };
+
+// ── Block fill rendering ────────────────────────────────────────────────────
+
+function makeLinearGradient(
+  bctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  colorA: string,
+  colorB: string,
+  angleDeg: number
+): CanvasGradient {
+  const rad = (angleDeg * Math.PI) / 180;
+  const sin = Math.sin(rad);
+  const cos = Math.cos(rad);
+  // Compute the half-length along the gradient axis so it spans edge-to-edge.
+  const half = (Math.abs(w * sin) + Math.abs(h * cos)) / 2;
+  const cx = w / 2;
+  const cy = h / 2;
+  const g = bctx.createLinearGradient(
+    cx - sin * half, cy - cos * half,
+    cx + sin * half, cy + cos * half
+  );
+  g.addColorStop(0, colorA);
+  g.addColorStop(1, colorB);
+  return g;
+}
+
+// Cache texture tiles: generated once per kind, reused every frame.
+const _textureTileCache = new Map<TextureKind, HTMLCanvasElement>();
+
+function _buildPaperTile(): HTMLCanvasElement {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d')!;
+  // Seeded LCG for deterministic, reproducible grain
+  let seed = 0x3141592;
+  const rng = (): number => {
+    seed = ((seed * 1664525 + 1013904223) >>> 0);
+    return seed / 0x100000000;
+  };
+  const img = ctx.createImageData(S, S);
+  const d = img.data;
+  for (let y = 0; y < S; y++) {
+    const rowBase = (rng() - 0.5) * 30; // slight row-level brightness (simulates fiber)
+    for (let x = 0; x < S; x++) {
+      const px = (rng() - 0.5) * 20;
+      const v = rowBase + px;
+      const i = (y * S + x) * 4;
+      if (v > 0) {
+        d[i] = d[i + 1] = d[i + 2] = 255;
+        d[i + 3] = Math.min(v | 0, 38);
+      } else {
+        d[i] = d[i + 1] = d[i + 2] = 0;
+        d[i + 3] = Math.min((-v) | 0, 28);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+function _buildGrainTile(): HTMLCanvasElement {
+  const S = 96;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d')!;
+  let seed = 0x9E3779B9;
+  const rng = (): number => {
+    seed = ((seed * 1664525 + 1013904223) >>> 0);
+    return seed / 0x100000000;
+  };
+  const img = ctx.createImageData(S, S);
+  const d = img.data;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const v = (rng() - 0.5) * 80;
+      const i = (y * S + x) * 4;
+      if (v > 0) {
+        d[i] = d[i + 1] = d[i + 2] = 255;
+        d[i + 3] = Math.min(v | 0, 65);
+      } else {
+        d[i] = d[i + 1] = d[i + 2] = 0;
+        d[i + 3] = Math.min((-v) | 0, 52);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+function _buildLinenTile(): HTMLCanvasElement {
+  const S = 6;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(0, 0, S, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';       ctx.fillRect(0, 2, S, 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 4, S, 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(0, 0, 1, S);
+  ctx.fillStyle = 'rgba(0,0,0,0.07)';       ctx.fillRect(2, 0, 1, S);
+  ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(4, 0, 1, S);
+  return c;
+}
+
+function _buildCanvasTile(): HTMLCanvasElement {
+  const S = 12;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = 'rgba(255,255,255,0.20)'; ctx.fillRect(0, 0, S, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.14)';       ctx.fillRect(0, 2, S, 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, 6, S, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';       ctx.fillRect(0, 8, S, 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(0, 0, 1, S);
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';       ctx.fillRect(2, 0, 2, S);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(6, 0, 1, S);
+  ctx.fillStyle = 'rgba(0,0,0,0.09)';       ctx.fillRect(8, 0, 2, S);
+  return c;
+}
+
+function _getTextureTile(kind: TextureKind): HTMLCanvasElement {
+  let tile = _textureTileCache.get(kind);
+  if (!tile) {
+    switch (kind) {
+      case 'paper':  tile = _buildPaperTile();  break;
+      case 'grain':  tile = _buildGrainTile();  break;
+      case 'linen':  tile = _buildLinenTile();  break;
+      case 'canvas': tile = _buildCanvasTile(); break;
+    }
+    _textureTileCache.set(kind, tile);
+  }
+  return tile;
+}
+
+/** Fill the color block layer with the given BlockFill. */
+function applyBlockFill(
+  bctx: CanvasRenderingContext2D,
+  fill: BlockFill,
+  w: number,
+  h: number
+): void {
+  if (fill.type === 'linear') {
+    bctx.fillStyle = makeLinearGradient(bctx, w, h, fill.colorA, fill.colorB, fill.angle);
+    bctx.fillRect(0, 0, w, h);
+    return;
+  }
+  if (fill.type === 'radial') {
+    const r = Math.sqrt(w * w + h * h) / 2;
+    const g = bctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, r);
+    g.addColorStop(0, fill.colorA);
+    g.addColorStop(1, fill.colorB);
+    bctx.fillStyle = g;
+    bctx.fillRect(0, 0, w, h);
+    return;
+  }
+  // solid or texture: fill base color first
+  bctx.fillStyle = fill.type === 'solid' ? fill.color : fill.color;
+  bctx.fillRect(0, 0, w, h);
+  if (fill.type === 'texture') {
+    const tile = _getTextureTile(fill.kind);
+    const pat = bctx.createPattern(tile, 'repeat');
+    if (pat) {
+      bctx.fillStyle = pat;
+      bctx.fillRect(0, 0, w, h);
+    }
+  }
+}
 
 function shapeFont(shape: Shape, unit: number): string {
   const font = shape.font ?? 'serif-italic';
@@ -385,8 +554,7 @@ export function render(
   blockLayer.height = Math.max(1, Math.round(colorRect.h));
   const bctx = blockLayer.getContext('2d');
   if (bctx) {
-    bctx.fillStyle = state.blockColor;
-    bctx.fillRect(0, 0, blockLayer.width, blockLayer.height);
+    applyBlockFill(bctx, state.blockFill, blockLayer.width, blockLayer.height);
 
     const localRect: Rect = {
       x: 0,
@@ -435,7 +603,7 @@ export function render(
     const text =
       state.caption.text.trim() !== ''
         ? state.caption.text
-        : buildAutoCaption(state.blockColor);
+        : buildAutoCaption(blockFillPrimaryColor(state.blockFill));
     if (text) {
       const baseFont = FONT_MAP[state.caption.font];
       const size = Math.max(14, Math.min(colorRect.w, colorRect.h) * 0.05);
@@ -443,7 +611,7 @@ export function render(
       ctx.font = font;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = `${contrastInk(state.blockColor)}D0`;
+      ctx.fillStyle = `${contrastInk(blockFillPrimaryColor(state.blockFill))}D0`;
       ctx.fillText(
         text,
         colorRect.x + colorRect.w / 2,

@@ -117,12 +117,19 @@
             <span class="panel__hint mono" id="palette-hint">先上传一张图</span>
           </div>
           <div class="palette-chips" id="palette-chips"></div>
-          <div class="palette-tools" id="palette-tools">
+
+          <!-- Fill type tabs -->
+          <div class="segmented fill-type-tabs" id="fill-type-tabs" role="radiogroup" aria-label="Fill type">
+            <button type="button" class="segmented__btn is-active" data-fill-type="solid" role="radio" data-i18n="fill.solid">纯色</button>
+            <button type="button" class="segmented__btn" data-fill-type="gradient" role="radio" data-i18n="fill.gradient">渐变</button>
+            <button type="button" class="segmented__btn" data-fill-type="texture" role="radio" data-i18n="fill.texture">材质</button>
+          </div>
+
+          <!-- Solid panel -->
+          <div class="fill-panel" id="fill-panel-solid">
             <div class="field field--palette-tools">
               <div class="field__row field__row--align-center">
-                <label class="field__label" for="block-color" data-i18n="label.block-color">
-                  色块主色
-                </label>
+                <label class="field__label" for="block-color" data-i18n="label.block-color">色块主色</label>
                 <div class="palette-tools__controls">
                   <input
                     id="block-color"
@@ -146,6 +153,60 @@
                     <span data-i18n="palette.eyedropper.label">吸色</span>
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gradient panel -->
+          <div class="fill-panel" id="fill-panel-gradient" hidden>
+            <div class="field">
+              <div class="gradient-stops">
+                <div class="gradient-stop">
+                  <label class="field__label" for="gradient-color-a" data-i18n="fill.grad.start">起始</label>
+                  <input id="gradient-color-a" type="color" class="color-input color-input--palette" value="#e6b422" />
+                </div>
+                <div class="gradient-stop">
+                  <label class="field__label" for="gradient-color-b" data-i18n="fill.grad.end">结束</label>
+                  <input id="gradient-color-b" type="color" class="color-input color-input--palette" value="#ffffff" />
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="fill.grad.dir">方向</label>
+              <div class="gradient-dir-group" id="gradient-dir-group" role="radiogroup" aria-label="Gradient direction">
+                <button type="button" class="gradient-dir-btn is-active" data-angle="0"      role="radio" title="↓ 上→下">↓</button>
+                <button type="button" class="gradient-dir-btn"           data-angle="45"     role="radio" title="↘ 左上→右下">↘</button>
+                <button type="button" class="gradient-dir-btn"           data-angle="90"     role="radio" title="→ 左→右">→</button>
+                <button type="button" class="gradient-dir-btn"           data-angle="135"    role="radio" title="↗ 左下→右上">↗</button>
+                <button type="button" class="gradient-dir-btn"           data-angle="radial" role="radio" title="径向">◉</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Texture panel -->
+          <div class="fill-panel" id="fill-panel-texture" hidden>
+            <div class="texture-grid" id="texture-grid" role="radiogroup" aria-label="Texture kind">
+              <button type="button" class="texture-swatch is-active" data-texture="paper" role="radio">
+                <span class="texture-swatch__preview texture-preview--paper" aria-hidden="true"></span>
+                <span data-i18n="texture.paper">纸张</span>
+              </button>
+              <button type="button" class="texture-swatch" data-texture="linen" role="radio">
+                <span class="texture-swatch__preview texture-preview--linen" aria-hidden="true"></span>
+                <span data-i18n="texture.linen">麻布</span>
+              </button>
+              <button type="button" class="texture-swatch" data-texture="grain" role="radio">
+                <span class="texture-swatch__preview texture-preview--grain" aria-hidden="true"></span>
+                <span data-i18n="texture.grain">胶片</span>
+              </button>
+              <button type="button" class="texture-swatch" data-texture="canvas" role="radio">
+                <span class="texture-swatch__preview texture-preview--canvas" aria-hidden="true"></span>
+                <span data-i18n="texture.canvas">画布</span>
+              </button>
+            </div>
+            <div class="field">
+              <div class="field__row field__row--align-center">
+                <label class="field__label" for="texture-color" data-i18n="label.texture-color">叠色</label>
+                <input id="texture-color" type="color" class="color-input color-input--palette" value="#e6b422" />
               </div>
             </div>
           </div>

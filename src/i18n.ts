@@ -76,6 +76,19 @@ const DICT: Record<string, Record<Lang, string>> = {
     en: 'This browser has no eyedropper (try Chrome, Edge, or a recent browser). Use the color wheel above.',
   },
 
+  // Palette fill type
+  'fill.solid':    { zh: '纯色', en: 'Solid' },
+  'fill.gradient': { zh: '渐变', en: 'Gradient' },
+  'fill.texture':  { zh: '材质', en: 'Texture' },
+  'fill.grad.start': { zh: '起始', en: 'Start' },
+  'fill.grad.end':   { zh: '结束', en: 'End' },
+  'fill.grad.dir':   { zh: '方向', en: 'Direction' },
+  'label.texture-color': { zh: '叠色', en: 'Tint' },
+  'texture.paper':  { zh: '纸张', en: 'Paper' },
+  'texture.linen':  { zh: '麻布', en: 'Linen' },
+  'texture.grain':  { zh: '胶片', en: 'Grain' },
+  'texture.canvas': { zh: '画布', en: 'Canvas' },
+
   // Shapes
   'shapes.sub': { zh: '创意拼贴', en: 'creative collage' },
   'label.fill-mode': { zh: '填充模式', en: 'Fill mode' },
