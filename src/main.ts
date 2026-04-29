@@ -1,12 +1,13 @@
 import './style.css';
 
-import { store } from './state';
+import { store, createInitialState } from './state';
 import type { BlockFill, CanvasRatio, Composition, FillMode, Layout, Shape, ShapeKind, TextureKind } from './types';
 import { blockFillPrimaryColor } from './types';
 import { extractPalette, buildAutoCaption, contrastInk } from './palette';
 import { SHAPE_KINDS, randomShapeId } from './shapes';
 import {
   render,
+  renderGrid,
   composeFromState,
   scaleLayoutToMaxEdge,
   chooseReadableLayout,
@@ -74,9 +75,12 @@ const captionEnabled = $<HTMLInputElement>('caption-enabled');
 const captionText = $<HTMLInputElement>('caption-text');
 const captionAutoHint = $<HTMLParagraphElement>('caption-auto-hint');
 const fontGroup = $<HTMLDivElement>('font-group');
+const captionSizeRange = $<HTMLInputElement>('caption-size-range');
+const captionSizeValue = $<HTMLOutputElement>('caption-size-value');
 
 const stage = $<HTMLElement>('stage');
 const stageInner = $<HTMLDivElement>('stage-inner');
+const gridStripEl = $<HTMLDivElement>('grid-strip');
 const stageEmpty = $<HTMLDivElement>('stage-empty');
 const stageMeta = $<HTMLParagraphElement>('stage-meta');
 const canvas = $<HTMLCanvasElement>('canvas');
@@ -271,8 +275,96 @@ function replayShape(
 }
 
 /* =============================================================================
+   Grid mode state
+   ============================================================================= */
+interface GridModeState {
+  cells: (Composition | null)[];
+  activeIndex: number;
+}
+
+let appMode: 'single' | 'grid' = 'single';
+const gridModeState: GridModeState = {
+  cells: Array.from({ length: 9 }, () => null),
+  activeIndex: 0,
+};
+
+/** 'global' = left panel affects all cells; 'single' = affects only the active cell. */
+let gridEditLevel: 'global' | 'single' = 'global';
+
+/** Master composition for global editing — holds shared non-image settings. */
+let gridGlobalTemplate: Composition = { ...createInitialState(), canvasRatio: '1:1' };
+
+/**
+ * Keys from the global template that propagate to every cell.
+ * blockFill is intentionally excluded — each cell keeps its own extracted color.
+ */
+const GRID_GLOBAL_KEYS: ReadonlyArray<keyof Composition> = [
+  'layout', 'canvasRatio', 'splitRatio',
+  'caption', 'activeFillMode', 'activeShapeColor', 'activeShapeSize',
+];
+
+function getEffectiveCells(): (Composition | null)[] {
+  // In single mode the active cell comes from the live store; others from gridModeState.
+  // In global mode the cells are already kept in sync via propagateGlobalToAllCells.
+  if (gridEditLevel === 'single') {
+    const cells = [...gridModeState.cells];
+    cells[gridModeState.activeIndex] = store.get();
+    return cells;
+  }
+  return [...gridModeState.cells];
+}
+
+/** Copy shared panel settings from the global template to every populated cell. */
+function propagateGlobalToAllCells(s: Composition): void {
+  const shared: Partial<Composition> = {};
+  for (const k of GRID_GLOBAL_KEYS) {
+    (shared as Record<string, unknown>)[k] = s[k];
+  }
+  for (let i = 0; i < 9; i++) {
+    if (gridModeState.cells[i]) {
+      gridModeState.cells[i] = { ...gridModeState.cells[i]!, ...shared };
+    }
+  }
+}
+
+/* =============================================================================
    File handling — upload, drop, paste
    ============================================================================= */
+
+/** Decode a File into a Composition without touching the store. */
+async function fileToComposition(file: File): Promise<Composition | null> {
+  if (!file.type.startsWith('image/')) return null;
+  const src = URL.createObjectURL(file);
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = src;
+  try {
+    await img.decode();
+  } catch {
+    URL.revokeObjectURL(src);
+    return null;
+  }
+  const palette = extractPalette(img, 5);
+  const firstColor = palette[0] ?? '#E6B422';
+  const s = store.get();
+  // In grid mode cells are always 1:1; in single mode respect current setting.
+  const canvasRatio: CanvasRatio = appMode === 'grid' ? '1:1' : s.canvasRatio;
+  const nextLayout = canvasRatio !== 'auto'
+    ? s.layout
+    : chooseReadableLayout(img.naturalWidth, img.naturalHeight, s.layout);
+  return {
+    ...createInitialState(),
+    image: img,
+    imageName: file.name,
+    palette: palette.length > 0 ? palette : createInitialState().palette,
+    blockFill: { type: 'solid' as const, color: firstColor },
+    shapes: [],
+    selectedShapeId: null,
+    canvasRatio,
+    layout: nextLayout,
+  };
+}
+
 async function loadFile(file: File): Promise<void> {
   if (!file.type.startsWith('image/')) {
     window.alert(
@@ -282,35 +374,15 @@ async function loadFile(file: File): Promise<void> {
     );
     return;
   }
-  const src = URL.createObjectURL(file);
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.src = src;
-  try {
-    await img.decode();
-  } catch {
+  const composition = await fileToComposition(file);
+  if (!composition) {
     window.alert(
       getLang() === 'zh' ? '无法解析这张图片。' : 'Could not decode this image.'
     );
-    URL.revokeObjectURL(src);
     return;
   }
-  const palette = extractPalette(img, 5);
-  const firstColor = palette[0] ?? store.get().palette[0] ?? '#E6B422';
-  const currentState = store.get();
-  const nextLayout = currentState.canvasRatio !== 'auto'
-    ? currentState.layout
-    : chooseReadableLayout(img.naturalWidth, img.naturalHeight, currentState.layout);
   viewZoom = 1;
-  store.set({
-    image: img,
-    imageName: file.name,
-    palette: palette.length > 0 ? palette : store.get().palette,
-    blockFill: { type: 'solid' as const, color: firstColor },
-    shapes: [],
-    selectedShapeId: null,
-    layout: nextLayout,
-  });
+  store.set(composition);
   fileNameEl.textContent = file.name;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -319,6 +391,207 @@ async function loadFile(file: File): Promise<void> {
         syncZoomHud();
       }
     });
+  });
+}
+
+/** Return index of the first cell with no image, or 0 if all filled. */
+function findFirstEmptyCell(): number {
+  for (let i = 0; i < 9; i++) {
+    if (!gridModeState.cells[i]?.image) return i;
+  }
+  return 0;
+}
+
+/** Batch-load files into grid cells starting from startIdx (wraps around). */
+async function loadFilesToGrid(files: File[], startIdx: number): Promise<void> {
+  const images = files.filter(f => f.type.startsWith('image/')).slice(0, 9);
+  if (images.length === 0) return;
+  let filled = 0;
+  for (const file of images) {
+    const idx = (startIdx + filled) % 9;
+    const composition = await fileToComposition(file);
+    if (!composition) continue;
+    gridModeState.cells[idx] = composition;
+    if (gridEditLevel === 'single' && idx === gridModeState.activeIndex) {
+      store.set(composition);
+    }
+    filled++;
+  }
+
+  if (gridEditLevel === 'global') {
+    // Propagate layout/ratio/caption to new cells; each cell keeps its own blockFill.
+    propagateGlobalToAllCells(store.get());
+  }
+
+  renderGridStrip();
+  // gridModeState changed without a store update, so force canvas repaint.
+  paint(store.get());
+}
+
+/** Route incoming files to the appropriate handler based on mode + edit level. */
+async function handleFiles(files: FileList | File[]): Promise<void> {
+  const arr = Array.isArray(files) ? files : Array.from(files);
+  if (arr.length === 0) return;
+  if (appMode === 'grid') {
+    if (gridEditLevel === 'global') {
+      // Fill from the first empty slot (batch-friendly)
+      await loadFilesToGrid(arr, findFirstEmptyCell());
+    } else {
+      // Single-cell mode: load into (and after) the active cell
+      await loadFilesToGrid(arr, gridModeState.activeIndex);
+    }
+  } else {
+    const file = arr[0];
+    if (file) await loadFile(file);
+  }
+}
+
+/* =============================================================================
+   Grid mode — switch, cell selection, strip rendering
+   ============================================================================= */
+function switchAppMode(mode: 'single' | 'grid'): void {
+  if (appMode === mode) return;
+  appMode = mode;
+  document.body.dataset.appMode = mode;
+  syncAppModeToggleUi();
+
+  if (mode === 'grid') {
+    const prev = store.get();
+    // Global template holds shared non-color settings (blockFill NOT propagated).
+    gridGlobalTemplate = {
+      ...createInitialState(),
+      canvasRatio: '1:1' as const,
+      layout: prev.layout,
+      splitRatio: prev.splitRatio,
+      caption: prev.caption,
+    };
+    setGridEditLevel('global');
+    store.set(gridGlobalTemplate);
+    fileInput.multiple = true;
+    gridStripEl.hidden = false;
+    renderGridStrip();
+  } else {
+    fileInput.multiple = false;
+    gridStripEl.hidden = true;
+    if (gridEditLevel === 'single') {
+      const cell = gridModeState.cells[gridModeState.activeIndex];
+      if (cell) store.set(cell);
+    }
+    setGridEditLevel('global');
+  }
+  paint(store.get());
+}
+
+function setGridEditLevel(level: 'global' | 'single'): void {
+  gridEditLevel = level;
+  document.body.dataset.gridEdit = level;
+}
+
+/** Enter global-edit level: left panel changes propagate to all cells. */
+function enterGridGlobalEdit(): void {
+  if (gridEditLevel === 'single') {
+    gridModeState.cells[gridModeState.activeIndex] = { ...store.get() };
+  }
+  setGridEditLevel('global');
+  store.set({ ...gridGlobalTemplate });
+  fileNameEl.textContent = t('file.empty');
+  renderGridStrip();
+}
+
+/** Enter single-cell edit level for a specific cell. */
+function enterGridSingleEdit(index: number): void {
+  if (gridEditLevel === 'global') {
+    gridGlobalTemplate = { ...store.get() };
+  } else {
+    gridModeState.cells[gridModeState.activeIndex] = { ...store.get() };
+  }
+  gridModeState.activeIndex = index;
+  setGridEditLevel('single');
+  const cell = gridModeState.cells[index];
+  if (cell) {
+    store.set(cell);
+    fileNameEl.textContent = cell.imageName || t('file.empty');
+  } else {
+    store.set({ ...createInitialState(), canvasRatio: '1:1' });
+    fileNameEl.textContent = t('file.empty');
+  }
+  renderGridStrip();
+}
+
+function renderGridStrip(): void {
+  gridStripEl.innerHTML = '';
+
+  // ── "全局" chip ──────────────────────────────────────────────────────────
+  const globalBtn = document.createElement('button');
+  globalBtn.type = 'button';
+  globalBtn.className =
+    'grid-thumb grid-global-btn' + (gridEditLevel === 'global' ? ' is-active' : '');
+  globalBtn.title = '全局设置 — 对所有格子生效';
+  globalBtn.setAttribute('role', 'option');
+  globalBtn.setAttribute('aria-selected', gridEditLevel === 'global' ? 'true' : 'false');
+  const globalLabel = document.createElement('span');
+  globalLabel.className = 'grid-thumb__label';
+  globalLabel.textContent = '全局';
+  globalBtn.appendChild(globalLabel);
+  globalBtn.addEventListener('click', enterGridGlobalEdit);
+  gridStripEl.appendChild(globalBtn);
+
+  // Separator
+  const sep = document.createElement('div');
+  sep.className = 'grid-strip__sep';
+  sep.setAttribute('aria-hidden', 'true');
+  gridStripEl.appendChild(sep);
+
+  // ── 9 cell thumbnails ────────────────────────────────────────────────────
+  for (let i = 0; i < 9; i++) {
+    const isActive = gridEditLevel === 'single' && i === gridModeState.activeIndex;
+    const cell = isActive ? store.get() : gridModeState.cells[i];
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'grid-thumb' + (isActive ? ' is-active' : '');
+    btn.dataset.gridIndex = String(i);
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.title = cell?.imageName ? cell.imageName : `格 ${i + 1}`;
+
+    if (cell?.image) {
+      const c = document.createElement('canvas');
+      const S = 60;
+      c.width = S; c.height = S;
+      c.style.cssText = 'width:100%;height:100%;display:block;';
+      const tc = c.getContext('2d');
+      if (tc) render(tc, cell, { width: S, height: S });
+      btn.appendChild(c);
+    } else {
+      const span = document.createElement('span');
+      span.className = 'grid-thumb__num';
+      span.textContent = String(i + 1);
+      btn.appendChild(span);
+    }
+
+    btn.addEventListener('click', () => enterGridSingleEdit(i));
+    gridStripEl.appendChild(btn);
+  }
+}
+
+function syncAppModeToggleUi(): void {
+  const group = document.getElementById('app-mode-toggle');
+  if (!group) return;
+  for (const btn of group.querySelectorAll<HTMLButtonElement>('[data-app-mode]')) {
+    const active = btn.dataset.appMode === appMode;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-checked', active ? 'true' : 'false');
+  }
+}
+
+function wireAppModeToggle(): void {
+  const group = document.getElementById('app-mode-toggle');
+  if (!group) return;
+  group.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-app-mode]');
+    if (!btn) return;
+    switchAppMode(btn.dataset.appMode as 'single' | 'grid');
   });
 }
 
@@ -332,8 +605,9 @@ function wireFileInput(): void {
   });
 
   fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    if (file) void loadFile(file);
+    if (fileInput.files && fileInput.files.length > 0) {
+      void handleFiles(fileInput.files);
+    }
     fileInput.value = '';
   });
 
@@ -350,8 +624,8 @@ function wireFileInput(): void {
     e.preventDefault();
     uploadZone.classList.remove('is-dragover');
     stage.classList.remove('is-dragover');
-    const file = e.dataTransfer?.files?.[0];
-    if (file) void loadFile(file);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) void handleFiles(files);
   };
 
   for (const target of [uploadZone, stage]) {
@@ -366,7 +640,7 @@ function wireFileInput(): void {
     for (const item of items) {
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         const f = item.getAsFile();
-        if (f) void loadFile(f);
+        if (f) void handleFiles([f]);
         e.preventDefault();
         return;
       }
@@ -593,6 +867,10 @@ function wireCaption(): void {
     if (!btn) return;
     const font = btn.dataset.font as Composition['caption']['font'];
     store.patch((s) => ({ ...s, caption: { ...s.caption, font } }));
+  });
+  captionSizeRange.addEventListener('input', () => {
+    const sizeScale = parseInt(captionSizeRange.value, 10) / 100;
+    store.patch((s) => ({ ...s, caption: { ...s.caption, sizeScale } }));
   });
 }
 
@@ -851,6 +1129,10 @@ clearShapesBtn.addEventListener('click', () =>
    Export
    ============================================================================= */
 function exportPng(): void {
+  if (appMode === 'grid') {
+    exportGridPng();
+    return;
+  }
   const s = store.get();
   if (!s.image) {
     window.alert(
@@ -875,6 +1157,29 @@ function exportPng(): void {
         : 'fuguang';
       downloadAnchor.href = url;
       downloadAnchor.download = `${stem}__${width}x${height}__${Date.now()}.png`;
+      downloadAnchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    },
+    'image/png',
+    0.96
+  );
+}
+
+function exportGridPng(): void {
+  const cells = getEffectiveCells();
+  const SIZE = 2700; // 3×3 at 900px each
+  const off = document.createElement('canvas');
+  off.width = SIZE;
+  off.height = SIZE;
+  const oc = off.getContext('2d');
+  if (!oc) return;
+  renderGrid(oc, cells, { width: SIZE, height: SIZE });
+  off.toBlob(
+    (blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      downloadAnchor.href = url;
+      downloadAnchor.download = `shimmer-grid__${SIZE}x${SIZE}__${Date.now()}.png`;
       downloadAnchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     },
@@ -946,13 +1251,36 @@ function fitCanvasToStage(state: Composition): void {
   currentCanvasSize = { cssW, cssH };
 }
 
+/** Fit the canvas to a 1:1 square for the 9-grid view. */
+function fitGridCanvasToStage(): void {
+  const rect = stageInner.getBoundingClientRect();
+  const size = Math.max(64, Math.min(rect.width, rect.height));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  canvas.width = Math.round(size * dpr);
+  canvas.height = Math.round(size * dpr);
+  ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+  currentCanvasSize = { cssW: size, cssH: size };
+}
+
 function paint(state: Composition): void {
-  fitCanvasToStage(state);
-  render(ctx!, state, {
-    width: currentCanvasSize.cssW,
-    height: currentCanvasSize.cssH,
-    showSelection: true,
-  });
+  if (appMode === 'grid') {
+    fitGridCanvasToStage();
+    renderGrid(ctx!, getEffectiveCells(), {
+      width: currentCanvasSize.cssW,
+      height: currentCanvasSize.cssH,
+      activeIndex: gridEditLevel === 'single' ? gridModeState.activeIndex : -1,
+      showActiveRing: gridEditLevel === 'single',
+    });
+  } else {
+    fitCanvasToStage(state);
+    render(ctx!, state, {
+      width: currentCanvasSize.cssW,
+      height: currentCanvasSize.cssH,
+      showSelection: true,
+    });
+  }
 }
 
 function syncZoomHud(): void {
@@ -1016,6 +1344,14 @@ function wireZoomHud(): void {
 let lastPalette = '';
 
 function syncEmptyState(state: Composition): void {
+  if (appMode === 'grid') {
+    // Grid mode always shows the canvas regardless of image state.
+    stageEmpty.hidden = true;
+    stageInner.hidden = false;
+    stageMeta.hidden = true;
+    zoomHud.hidden = true;
+    return;
+  }
   const hasImage = !!state.image;
   stageEmpty.hidden = hasImage;
   stageInner.hidden = !hasImage;
@@ -1162,6 +1498,9 @@ function syncUi(state: Composition): void {
       btn.dataset.font === state.caption.font ? 'true' : 'false'
     );
   }
+  const sizeScalePct = Math.round((state.caption.sizeScale ?? 1) * 100).toString();
+  if (captionSizeRange.value !== sizeScalePct) captionSizeRange.value = sizeScalePct;
+  captionSizeValue.textContent = `${sizeScalePct}%`;
 
   // Stage meta
   const composed = composeFromState(state);
@@ -1178,8 +1517,10 @@ function syncUi(state: Composition): void {
   // File name
   fileNameEl.textContent = state.imageName || t('file.empty');
 
-  // Export button enabled only when image present
-  exportBtn.disabled = !state.image;
+  // Export button enabled when at least one cell has an image
+  exportBtn.disabled = appMode === 'grid'
+    ? !getEffectiveCells().some(c => c?.image)
+    : !state.image;
 
   if (state.image) syncZoomHud();
 }
@@ -1273,6 +1614,7 @@ function init(): void {
   wireCaption();
   wireTopBar();
   wireLangToggle();
+  wireAppModeToggle();
   wireStageZoom();
   wireZoomHud();
 
@@ -1282,6 +1624,10 @@ function init(): void {
 
   let pending = false;
   const schedule = (state: Composition): void => {
+    // In global grid mode every panel change propagates to all cells immediately.
+    if (appMode === 'grid' && gridEditLevel === 'global') {
+      propagateGlobalToAllCells(state);
+    }
     syncUi(state);
     if (pending) return;
     pending = true;

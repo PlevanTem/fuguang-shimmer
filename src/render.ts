@@ -683,8 +683,9 @@ export function render(
         : buildAutoCaption(blockFillPrimaryColor(state.blockFill));
     if (text) {
       const baseFont = FONT_MAP[state.caption.font];
-      const size = Math.max(14, Math.min(colorRect.w, colorRect.h) * 0.05);
-      const font = baseFont.replace('16px', `${size}px`);
+      const dim = Math.min(colorRect.w, colorRect.h);
+      const size = dim * 0.05 * (state.caption.sizeScale ?? 1);
+      const font = baseFont.replace('16px', `${Math.max(6, size).toFixed(1)}px`);
       ctx.font = font;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -706,4 +707,85 @@ export function render(
   }
 
   ctx.restore();
+}
+
+// ── 9-grid mode rendering ───────────────────────────────────────────────────
+
+export interface GridRenderOptions {
+  width: number;
+  height: number;
+  /** Active cell index (0–8); -1 = none. */
+  activeIndex?: number;
+  showActiveRing?: boolean;
+}
+
+/**
+ * Render a 3×3 grid of compositions. Each cell uses the same render()
+ * function with translate + clip, so it inherits all single-photo effects.
+ * Empty cells show a placeholder with a plus icon.
+ */
+export function renderGrid(
+  ctx: CanvasRenderingContext2D,
+  cells: (Composition | null)[],
+  options: GridRenderOptions
+): void {
+  const { width, height, activeIndex = -1, showActiveRing = false } = options;
+  const COLS = 3, ROWS = 3;
+  // Gap scales with the canvas so it reads consistently at any export size.
+  const gap = Math.max(3, Math.round(Math.min(width, height) * 0.005));
+
+  // The gap color becomes the thin border between cells.
+  ctx.fillStyle = '#D6D3C9';
+  ctx.fillRect(0, 0, width, height);
+
+  for (let i = 0; i < 9; i++) {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+
+    // Pixel-crisp cell bounds: distribute rounding error to the last cell.
+    const x = Math.round(col * (width + gap) / COLS);
+    const y = Math.round(row * (height + gap) / ROWS);
+    const x2 = col < COLS - 1 ? Math.round((col + 1) * (width + gap) / COLS) - gap : width;
+    const y2 = row < ROWS - 1 ? Math.round((row + 1) * (height + gap) / ROWS) - gap : height;
+    const w = x2 - x;
+    const h = y2 - y;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.translate(x, y);
+
+    const cell = cells[i] ?? null;
+    if (cell) {
+      render(ctx, cell, { width: w, height: h });
+    } else {
+      // Placeholder
+      ctx.fillStyle = PLACEHOLDER_IVORY;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = PLACEHOLDER_HAIRLINE;
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(8, 8, w - 16, h - 16);
+      ctx.setLineDash([]);
+      const cx = w / 2, cy = h / 2;
+      const arm = Math.min(w, h) * 0.11;
+      ctx.strokeStyle = '#A8A49A';
+      ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+      ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Active ring: drawn in screen-space after restore so it's not clipped.
+    if (showActiveRing && i === activeIndex) {
+      ctx.save();
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(x + 1.25, y + 1.25, w - 2.5, h - 2.5);
+      ctx.restore();
+    }
+  }
 }

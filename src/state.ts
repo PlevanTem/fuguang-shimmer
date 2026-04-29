@@ -15,6 +15,7 @@ export function createInitialState(): Composition {
       enabled: true,
       text: '',
       font: 'serif-italic',
+      sizeScale: 1,
     },
     activeFillMode: 'cutout',
     activeShapeColor: '#111111',

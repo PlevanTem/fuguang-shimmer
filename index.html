@@ -20,7 +20,7 @@
 
     <script type="module" src="/src/main.ts"></script>
   </head>
-  <body>
+  <body data-app-mode="single">
     <!-- ============================ Top bar ============================= -->
     <header class="top-bar">
       <div class="top-bar__brand">
@@ -30,6 +30,20 @@
       </div>
 
       <div class="top-bar__actions">
+        <!-- App mode toggle: single photo vs. 9-grid -->
+        <div class="mode-toggle" id="app-mode-toggle" role="radiogroup" aria-label="编辑模式">
+          <button type="button" class="mode-toggle__btn is-active" data-app-mode="single" role="radio" title="单图模式">单图</button>
+          <button type="button" class="mode-toggle__btn" data-app-mode="grid" role="radio" title="9宫格组图模式">
+            <svg width="10" height="10" viewBox="0 0 9 9" aria-hidden="true" fill="currentColor" style="margin-right:2px">
+              <rect x="0" y="0" width="2.5" height="2.5" rx="0.4"/><rect x="3.25" y="0" width="2.5" height="2.5" rx="0.4"/>
+              <rect x="6.5" y="0" width="2.5" height="2.5" rx="0.4"/><rect x="0" y="3.25" width="2.5" height="2.5" rx="0.4"/>
+              <rect x="3.25" y="3.25" width="2.5" height="2.5" rx="0.4"/><rect x="6.5" y="3.25" width="2.5" height="2.5" rx="0.4"/>
+              <rect x="0" y="6.5" width="2.5" height="2.5" rx="0.4"/><rect x="3.25" y="6.5" width="2.5" height="2.5" rx="0.4"/>
+              <rect x="6.5" y="6.5" width="2.5" height="2.5" rx="0.4"/>
+            </svg>组图
+          </button>
+        </div>
+
         <div class="lang-toggle" role="radiogroup" aria-label="Language">
           <button type="button" class="lang-toggle__btn is-active" data-lang="zh" role="radio">
             中
@@ -152,7 +166,7 @@
         </section>
 
         <!-- Palette -->
-        <section class="panel__section">
+        <section class="panel__section" id="panel-section-palette">
           <div class="panel__head">
             <p class="overline" data-i18n="section.palette">03 · 调色板</p>
             <span class="panel__hint mono" id="palette-hint">先上传一张图</span>
@@ -392,6 +406,14 @@
               </button>
             </div>
           </div>
+
+          <div class="field">
+            <div class="field__row">
+              <label class="field__label" for="caption-size-range" data-i18n="label.caption-size">字号</label>
+              <output class="field__value mono" id="caption-size-value">100%</output>
+            </div>
+            <input id="caption-size-range" type="range" min="30" max="300" step="5" value="100" />
+          </div>
         </section>
       </aside>
 
@@ -418,6 +440,9 @@
         <div class="stage__inner" id="stage-inner" hidden>
           <canvas id="canvas" aria-label="Composition preview"></canvas>
         </div>
+
+        <!-- Grid strip — thumbnail row for 9-grid mode, hidden in single mode -->
+        <div class="grid-strip" id="grid-strip" hidden aria-label="九宫格格子列表" role="listbox"></div>
 
         <!-- Zoom HUD — floating bottom-right inside the stage -->
         <div class="zoom-hud" id="zoom-hud" hidden>

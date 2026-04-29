@@ -139,6 +139,7 @@ const DICT: Record<string, Record<Lang, string>> = {
   },
   'caption.auto': { zh: '自动：{0}', en: 'auto: {0}' },
   'label.font': { zh: '字体', en: 'Font' },
+  'label.caption-size': { zh: '字号', en: 'Size' },
 
   // Stage
   'stage.empty.title': { zh: '拖一张照片进来，开始你的色彩日记', en: 'Drop a photo to begin your color diary' },

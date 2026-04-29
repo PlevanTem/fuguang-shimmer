@@ -1013,6 +1013,165 @@ input[type='range']::-moz-range-thumb {
   text-transform: uppercase;
 }
 
+/* ----- App-mode toggle (single / grid) ---------------------------------- */
+.mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 2px;
+  background: var(--paper-ivory);
+  margin-right: var(--s-1);
+}
+
+.mode-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 40px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  transition:
+    background-color var(--d-micro) var(--ease-paper),
+    color var(--d-micro) var(--ease-paper);
+}
+
+.mode-toggle__btn:hover {
+  color: var(--ink);
+}
+
+.mode-toggle__btn.is-active {
+  background: var(--paper-card);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.04);
+}
+
+/* ----- Grid strip (visible in grid mode only) ---------------------------- */
+.grid-strip {
+  flex-shrink: 0;
+  width: 100%;
+  height: 86px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-top: 1px solid var(--hairline);
+  background: var(--paper-card);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+
+.grid-strip::-webkit-scrollbar {
+  height: 6px;
+}
+
+.grid-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.grid-strip::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border-radius: 999px;
+}
+
+.grid-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--paper-ivory);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    border-color var(--d-micro) var(--ease-paper),
+    transform var(--d-micro) var(--ease-paper);
+}
+
+.grid-thumb:hover {
+  border-color: var(--hairline-strong);
+  transform: translateY(-2px);
+}
+
+.grid-thumb.is-active {
+  border-color: var(--ink);
+}
+
+.grid-thumb.is-active::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+.grid-thumb__num {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+/* "全局" chip — visually distinct from cell thumbnails */
+.grid-global-btn {
+  min-width: 52px;
+  flex-direction: column;
+  gap: 0;
+  border-style: dashed;
+}
+
+.grid-global-btn.is-active {
+  border-style: solid;
+}
+
+.grid-thumb__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.grid-global-btn.is-active .grid-thumb__label {
+  color: var(--ink);
+}
+
+/* Vertical separator between "全局" and cell thumbs */
+.grid-strip__sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 40px;
+  background: var(--hairline);
+  margin: 0 var(--s-1);
+  align-self: center;
+}
+
+/* In grid mode the zoom HUD sits above the strip */
+body[data-app-mode="grid"] .zoom-hud {
+  bottom: 96px;
+}
+
+/* Global grid-edit level: hide per-photo palette (each cell keeps its own color) */
+body[data-app-mode="grid"][data-grid-edit="global"] #panel-section-palette {
+  display: none;
+}
+
+/* In grid mode hide the stage meta (redundant; cell info shows in header) */
+body[data-app-mode="grid"] .stage__meta {
+  display: none;
+}
+
 /* ----- Language toggle -------------------------------------------------- */
 .lang-toggle {
   display: inline-flex;

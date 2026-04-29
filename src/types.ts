@@ -91,6 +91,11 @@ export interface Caption {
   text: string;
   /** Font family key (matches FONTS map in render.ts). */
   font: FontKey;
+  /**
+   * Font size multiplier relative to the auto-calculated base size.
+   * 1.0 = default, range 0.3–3.0.
+   */
+  sizeScale: number;
 }
 
 export interface Composition {
