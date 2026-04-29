@@ -713,6 +713,29 @@ function patchBlockFillPrimary(hex: string): void {
   }
 }
 
+/**
+ * In global grid mode: propagate fill type + structural properties (angle, kind)
+ * from the template's blockFill to every cell, preserving each cell's own primary color.
+ */
+function propagateBlockFillStructureToAllCells(templateFill: BlockFill): void {
+  for (let i = 0; i < 9; i++) {
+    const cell = gridModeState.cells[i];
+    if (!cell) continue;
+    const primary = blockFillPrimaryColor(cell.blockFill);
+    let newFill: BlockFill;
+    if (templateFill.type === 'solid') {
+      newFill = { type: 'solid', color: primary };
+    } else if (templateFill.type === 'linear') {
+      newFill = { type: 'linear', colorA: primary, colorB: templateFill.colorB, angle: templateFill.angle };
+    } else if (templateFill.type === 'radial') {
+      newFill = { type: 'radial', colorA: primary, colorB: templateFill.colorB };
+    } else {
+      newFill = { type: 'texture', kind: templateFill.kind, color: primary };
+    }
+    gridModeState.cells[i] = { ...cell, blockFill: newFill };
+  }
+}
+
 function switchFillType(tab: 'solid' | 'gradient' | 'texture'): void {
   const s = store.get();
   const primary = blockFillPrimaryColor(s.blockFill);
@@ -735,6 +758,10 @@ function wireFillTypeTabs(): void {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-fill-type]');
     if (!btn) return;
     switchFillType(btn.dataset.fillType as 'solid' | 'gradient' | 'texture');
+    if (appMode === 'grid' && gridEditLevel === 'global') {
+      propagateBlockFillStructureToAllCells(store.get().blockFill);
+      paint(store.get());
+    }
   });
 }
 
@@ -785,6 +812,10 @@ function wireGradientPanel(): void {
       const angle = parseInt(btn.dataset.angle!, 10);
       store.set({ blockFill: { type: 'linear' as const, colorA, colorB, angle } });
     }
+    if (appMode === 'grid' && gridEditLevel === 'global') {
+      propagateBlockFillStructureToAllCells(store.get().blockFill);
+      paint(store.get());
+    }
   });
 }
 
@@ -796,6 +827,10 @@ function wireTexturePanel(): void {
     const fill = store.get().blockFill;
     const color = fill.type === 'texture' ? fill.color : blockFillPrimaryColor(fill);
     store.set({ blockFill: { type: 'texture' as const, kind, color } });
+    if (appMode === 'grid' && gridEditLevel === 'global') {
+      propagateBlockFillStructureToAllCells(store.get().blockFill);
+      paint(store.get());
+    }
   });
   textureColorInput.addEventListener('input', () => {
     const fill = store.get().blockFill;

@@ -1162,8 +1162,12 @@ body[data-app-mode="grid"] .zoom-hud {
   bottom: 96px;
 }
 
-/* Global grid-edit level: hide per-photo palette (each cell keeps its own color) */
-body[data-app-mode="grid"][data-grid-edit="global"] #panel-section-palette {
+/* Global grid-edit level: hide per-photo color controls, keep fill-type tabs + structural controls */
+body[data-app-mode="grid"][data-grid-edit="global"] #palette-chips,
+body[data-app-mode="grid"][data-grid-edit="global"] #palette-hint,
+body[data-app-mode="grid"][data-grid-edit="global"] #fill-panel-solid,
+body[data-app-mode="grid"][data-grid-edit="global"] .gradient-stops,
+body[data-app-mode="grid"][data-grid-edit="global"] #texture-color-field {
   display: none;
 }
 
